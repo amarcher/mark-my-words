@@ -1,6 +1,7 @@
 import type { RoundActiveState } from '@mmw/shared';
 import Timer from '../../components/Timer';
 import GuessHistory from '../../components/GuessHistory';
+import WordCloud from '../../components/WordCloud';
 
 interface Props {
   state: RoundActiveState;
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function HostGame({ state, game }: Props) {
+  const topGuesses = state.guessHistory.slice(0, 30);
+
   return (
     <div className="min-h-screen flex flex-col items-center p-8">
       {/* Round info + Timer */}
@@ -27,9 +30,14 @@ export default function HostGame({ state, game }: Props) {
         </p>
       </div>
 
-      {/* Guess history — the main display */}
-      <div className="w-full max-w-4xl flex-1 overflow-y-auto">
-        <GuessHistory guesses={state.guessHistory} players={state.players} />
+      {/* Two-column: Word Cloud + Guess History */}
+      <div className="w-full max-w-6xl flex-1 grid grid-cols-2 gap-6 min-h-0">
+        <div className="overflow-y-auto flex items-start justify-center">
+          <WordCloud guesses={topGuesses} />
+        </div>
+        <div className="overflow-y-auto">
+          <GuessHistory guesses={state.guessHistory} players={state.players} />
+        </div>
       </div>
 
       {/* Notifications */}

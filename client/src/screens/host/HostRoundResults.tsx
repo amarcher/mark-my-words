@@ -42,6 +42,7 @@ function PhaseProgressBar({ timeRemaining, totalTime, paused }: { timeRemaining:
 
 function RevealView({ state }: { state: RoundRevealingState }) {
   const playerColorMap = new Map(state.players.map(p => [p.id, p.color]));
+  const sortedGuesses = [...state.revealedGuesses].sort((a, b) => a.rank - b.rank);
 
   return (
     <div className="min-h-screen flex flex-col items-center p-8">
@@ -50,7 +51,7 @@ function RevealView({ state }: { state: RoundRevealingState }) {
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
         {/* Round guesses */}
         <div className="space-y-3">
-          {state.revealedGuesses.map((guess, i) => (
+          {sortedGuesses.map((guess, i) => (
             <div
               key={guess.playerId}
               className="flex items-center gap-4 p-4 rounded-xl bg-bg-card/50 border border-white/5 animate-slide-up"

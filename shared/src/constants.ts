@@ -1,0 +1,60 @@
+// Game limits
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 12;
+export const MAX_ROUNDS = 10;
+export const DEFAULT_ROUND_TIME = 30; // seconds
+export const ROOM_CODE_LENGTH = 4;
+export const ROOM_INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+export const MAX_GUESS_LENGTH = 30;
+
+// Room code alphabet (excludes I and O for readability)
+export const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+// Rank thresholds and colors
+export const RANK_ZONES = {
+  WIN: { max: 1, color: '#fbbf24', label: 'SECRET WORD' },
+  GREEN_HOT: { max: 10, color: '#22c55e', label: 'On Fire' },
+  GREEN_WARM: { max: 50, color: '#22c55e', label: 'Very Warm' },
+  GREEN: { max: 300, color: '#22c55e', label: 'Warm' },
+  ORANGE: { max: 1500, color: '#f59e0b', label: 'Cold' },
+  RED: { max: Infinity, color: '#ef4444', label: 'Ice Cold' },
+} as const;
+
+// Scoring tiers
+export const SCORING_TIERS = [
+  { maxRank: 1, points: 1000 },
+  { maxRank: 10, points: 500 },
+  { maxRank: 50, points: 300 },
+  { maxRank: 150, points: 200 },
+  { maxRank: 300, points: 100 },
+  { maxRank: 1500, points: 50 },
+  { maxRank: Infinity, points: 10 },
+] as const;
+
+export const FIRST_SUBMIT_BONUS = 10;
+
+// Phase auto-advance display durations (seconds)
+export const REVEAL_DISPLAY_TIME = 8;
+export const ACCOLADES_DISPLAY_TIME = 8;
+export const SCOREBOARD_DISPLAY_TIME = 6;
+
+export function getPointsForRank(rank: number): number {
+  for (const tier of SCORING_TIERS) {
+    if (rank <= tier.maxRank) return tier.points;
+  }
+  return 10;
+}
+
+export function getRankZone(rank: number): string {
+  if (rank <= 1) return 'win';
+  if (rank <= 300) return 'green';
+  if (rank <= 1500) return 'orange';
+  return 'red';
+}
+
+export function getRankColor(rank: number): string {
+  if (rank <= 1) return RANK_ZONES.WIN.color;
+  if (rank <= 300) return RANK_ZONES.GREEN.color;
+  if (rank <= 1500) return RANK_ZONES.ORANGE.color;
+  return RANK_ZONES.RED.color;
+}

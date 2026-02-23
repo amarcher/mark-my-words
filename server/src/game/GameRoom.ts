@@ -160,6 +160,52 @@ export class GameRoom {
     return this.players.has(id);
   }
 
+  rekeyPlayer(oldId: string, newId: string): void {
+    // Players map
+    const player = this.players.get(oldId);
+    if (player) {
+      this.players.delete(oldId);
+      player.id = newId;
+      this.players.set(newId, player);
+    }
+
+    // Scores
+    const score = this.scores.get(oldId);
+    if (score !== undefined) {
+      this.scores.delete(oldId);
+      this.scores.set(newId, score);
+    }
+
+    // Round guesses
+    const guess = this.roundGuesses.get(oldId);
+    if (guess) {
+      this.roundGuesses.delete(oldId);
+      guess.playerId = newId;
+      this.roundGuesses.set(newId, guess);
+    }
+
+    // Previous positions
+    const pos = this.previousPositions.get(oldId);
+    if (pos !== undefined) {
+      this.previousPositions.delete(oldId);
+      this.previousPositions.set(newId, pos);
+    }
+
+    // All guesses history
+    for (const g of this.allGuesses) {
+      if (g.playerId === oldId) g.playerId = newId;
+    }
+
+    // Leader
+    if (this.leaderId === oldId) this.leaderId = newId;
+
+    // First submitter
+    if (this.firstSubmitterId === oldId) this.firstSubmitterId = newId;
+
+    // Accolade engine
+    this.accoladeEngine.rekeyPlayer(oldId, newId);
+  }
+
   getPhase(): GamePhase {
     return this.phase;
   }

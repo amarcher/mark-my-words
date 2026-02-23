@@ -18,6 +18,10 @@ export interface ClientToServerEvents {
   'game:play-again': () => void;
   'game:pause': () => void;
   'game:resume': () => void;
+  'room:reconnect': (
+    data: { roomCode: string; playerName: string },
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
 }
 
 // Server → Client events

@@ -7,7 +7,7 @@ import HostGameOver from './HostGameOver';
 import PauseOverlay from '../../components/PauseOverlay';
 
 export default function HostScreen() {
-  const { connected } = useSocket();
+  const { connected, reconnecting } = useSocket();
   const game = useGameState();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
@@ -26,6 +26,14 @@ export default function HostScreen() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-white/40 animate-pulse">Connecting to server...</p>
+      </div>
+    );
+  }
+
+  if (reconnecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-white/40 animate-pulse">Reconnecting...</p>
       </div>
     );
   }

@@ -14,11 +14,17 @@ type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServe
 export function registerHandlers(io: TypedServer, roomManager: RoomManager): void {
   io.on('connection', (socket: TypedSocket) => {
     console.log(`Client connected: ${socket.id}`);
+    const reconnectToken = socket.handshake.auth?.reconnectToken as string | undefined;
 
     socket.on('room:create', (callback) => {
       const roomCode = roomManager.createRoom(socket.id);
       socket.join(roomCode);
       socket.data.roomCode = roomCode;
+
+      // Register token for host reconnection
+      if (reconnectToken) {
+        roomManager.registerHostToken(reconnectToken, socket.id);
+      }
 
       // Send state directly — the broadcast in createRoom fired before socket.join
       const room = roomManager.getRoom(roomCode);
@@ -53,6 +59,11 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
       socket.data.playerName = playerName.trim();
       socket.data.roomCode = roomCode.toUpperCase();
 
+      // Register token for player reconnection
+      if (reconnectToken) {
+        roomManager.registerToken(reconnectToken, socket.id);
+      }
+
       // Notify other players
       socket.to(roomCode.toUpperCase()).emit('player:joined', {
         playerId: socket.id,
@@ -78,6 +89,48 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
       roomManager.leaveRoom(socket.id);
       socket.leave(roomCode);
       socket.data.roomCode = undefined as unknown as string;
+    });
+
+    socket.on('room:reconnect', (data, callback) => {
+      const { roomCode, playerName } = data;
+      if (!reconnectToken) {
+        callback({ success: false, error: 'No reconnect token' });
+        return;
+      }
+
+      // Try player reconnect first
+      const playerResult = roomManager.handleReconnect(reconnectToken, socket.id, roomCode);
+      if (playerResult) {
+        socket.join(roomCode.toUpperCase());
+        socket.data.playerId = socket.id;
+        socket.data.playerName = playerResult.playerName;
+        socket.data.roomCode = roomCode.toUpperCase();
+
+        // Notify others
+        socket.to(roomCode.toUpperCase()).emit('player:reconnected', {
+          playerId: socket.id,
+          playerName: playerResult.playerName,
+        });
+
+        // Push fresh state
+        socket.emit('game:state', playerResult.room.getState());
+        callback({ success: true });
+        return;
+      }
+
+      // Try host reconnect
+      const hostRoom = roomManager.handleHostReconnect(reconnectToken, socket.id, roomCode);
+      if (hostRoom) {
+        socket.join(roomCode.toUpperCase());
+        socket.data.roomCode = roomCode.toUpperCase();
+
+        // Push fresh state
+        socket.emit('game:state', hostRoom.getState());
+        callback({ success: true });
+        return;
+      }
+
+      callback({ success: false, error: 'Could not reconnect' });
     });
 
     socket.on('room:kick', (data) => {

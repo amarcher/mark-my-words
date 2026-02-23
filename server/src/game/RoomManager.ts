@@ -11,6 +11,8 @@ export class RoomManager {
   private rooms: Map<string, GameRoom> = new Map();
   private playerToRoom: Map<string, string> = new Map();
   private hostToRoom: Map<string, string> = new Map();
+  private tokenToPlayerId: Map<string, string> = new Map();
+  private tokenToHostId: Map<string, string> = new Map();
   private callbacks: RoomCallbacks;
   private cleanupInterval: ReturnType<typeof setInterval>;
 
@@ -83,13 +85,17 @@ export class RoomManager {
 
     room.removePlayer(playerId);
     this.playerToRoom.delete(playerId);
+    this.clearTokenForPlayer(playerId);
 
     if (room.getPlayerCount() === 0) {
       room.destroy();
       this.rooms.delete(roomCode);
       // Clean up host mapping
       for (const [hostId, rc] of this.hostToRoom) {
-        if (rc === roomCode) this.hostToRoom.delete(hostId);
+        if (rc === roomCode) {
+          this.hostToRoom.delete(hostId);
+          this.clearTokenForHost(hostId);
+        }
       }
     }
   }
@@ -105,6 +111,7 @@ export class RoomManager {
 
     room.removePlayer(targetId);
     this.playerToRoom.delete(targetId);
+    this.clearTokenForPlayer(targetId);
     return true;
   }
 
@@ -154,12 +161,86 @@ export class RoomManager {
     }
   }
 
-  handleReconnect(playerId: string, socketId: string): GameRoom | undefined {
-    const room = this.getRoomForPlayer(playerId);
+  registerToken(token: string, playerId: string): void {
+    this.tokenToPlayerId.set(token, playerId);
+  }
+
+  registerHostToken(token: string, hostId: string): void {
+    this.tokenToHostId.set(token, hostId);
+  }
+
+  handleReconnect(
+    token: string,
+    newSocketId: string,
+    roomCode: string
+  ): { room: GameRoom; playerName: string } | undefined {
+    const oldPlayerId = this.tokenToPlayerId.get(token);
+    if (!oldPlayerId) return undefined;
+
+    const storedRoomCode = this.playerToRoom.get(oldPlayerId);
+    if (!storedRoomCode || storedRoomCode !== roomCode.toUpperCase()) return undefined;
+
+    const room = this.rooms.get(storedRoomCode);
     if (!room) return undefined;
 
-    room.setPlayerConnected(playerId, true);
+    const player = room.getPlayer(oldPlayerId);
+    if (!player) return undefined;
+
+    const playerName = player.name;
+
+    // Re-key if socket ID changed
+    if (oldPlayerId !== newSocketId) {
+      room.rekeyPlayer(oldPlayerId, newSocketId);
+      this.playerToRoom.delete(oldPlayerId);
+      this.playerToRoom.set(newSocketId, storedRoomCode);
+      this.tokenToPlayerId.set(token, newSocketId);
+    }
+
+    room.setPlayerConnected(newSocketId, true);
+    return { room, playerName };
+  }
+
+  handleHostReconnect(
+    token: string,
+    newSocketId: string,
+    roomCode: string
+  ): GameRoom | undefined {
+    const oldHostId = this.tokenToHostId.get(token);
+    if (!oldHostId) return undefined;
+
+    const storedRoomCode = this.hostToRoom.get(oldHostId);
+    if (!storedRoomCode || storedRoomCode !== roomCode.toUpperCase()) return undefined;
+
+    const room = this.rooms.get(storedRoomCode);
+    if (!room) return undefined;
+
+    // Re-key host
+    if (oldHostId !== newSocketId) {
+      this.hostToRoom.delete(oldHostId);
+      this.hostToRoom.set(newSocketId, storedRoomCode);
+      room.setHost(newSocketId);
+      this.tokenToHostId.set(token, newSocketId);
+    }
+
     return room;
+  }
+
+  private clearTokenForPlayer(playerId: string): void {
+    for (const [token, id] of this.tokenToPlayerId) {
+      if (id === playerId) {
+        this.tokenToPlayerId.delete(token);
+        break;
+      }
+    }
+  }
+
+  private clearTokenForHost(hostId: string): void {
+    for (const [token, id] of this.tokenToHostId) {
+      if (id === hostId) {
+        this.tokenToHostId.delete(token);
+        break;
+      }
+    }
   }
 
   private cleanupInactiveRooms(): void {
@@ -172,11 +253,17 @@ export class RoomManager {
 
         // Clean up player mappings
         for (const [playerId, roomCode] of this.playerToRoom) {
-          if (roomCode === code) this.playerToRoom.delete(playerId);
+          if (roomCode === code) {
+            this.playerToRoom.delete(playerId);
+            this.clearTokenForPlayer(playerId);
+          }
         }
         // Clean up host mappings
         for (const [hostId, roomCode] of this.hostToRoom) {
-          if (roomCode === code) this.hostToRoom.delete(hostId);
+          if (roomCode === code) {
+            this.hostToRoom.delete(hostId);
+            this.clearTokenForHost(hostId);
+          }
         }
       }
     }

@@ -7,13 +7,21 @@ import PlayerResults from './PlayerResults';
 
 export default function PlayerScreen() {
   const { roomCode: urlRoomCode } = useParams();
-  const { connected } = useSocket();
+  const { connected, reconnecting } = useSocket();
   const game = useGameState();
 
   if (!connected) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-white/40 animate-pulse">Connecting to server...</p>
+      </div>
+    );
+  }
+
+  if (reconnecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-white/40 animate-pulse">Reconnecting...</p>
       </div>
     );
   }

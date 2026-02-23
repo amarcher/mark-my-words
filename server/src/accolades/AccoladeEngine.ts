@@ -47,6 +47,14 @@ export class AccoladeEngine {
     this.playerHistories.clear();
   }
 
+  rekeyPlayer(oldId: string, newId: string): void {
+    const history = this.playerHistories.get(oldId);
+    if (history) {
+      this.playerHistories.delete(oldId);
+      this.playerHistories.set(newId, history);
+    }
+  }
+
   recordRound(guesses: GuessResult[]): void {
     for (const guess of guesses) {
       let history = this.playerHistories.get(guess.playerId);

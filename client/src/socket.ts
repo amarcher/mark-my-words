@@ -11,23 +11,75 @@ import type {
 
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
+// Generate or retrieve a stable reconnect token
+function getReconnectToken(): string {
+  let token = sessionStorage.getItem('reconnectToken');
+  if (!token) {
+    token = crypto.randomUUID();
+    sessionStorage.setItem('reconnectToken', token);
+  }
+  return token;
+}
+
 const socket: TypedSocket = io(
   import.meta.env.PROD ? window.location.origin : 'http://localhost:3001',
   {
     autoConnect: false,
     transports: ['websocket', 'polling'],
+    auth: { reconnectToken: getReconnectToken() },
   }
 );
 
 export { socket };
 
+// Session storage helpers
+function saveSession(data: { roomCode: string; playerName?: string; isHost?: boolean }) {
+  sessionStorage.setItem('roomCode', data.roomCode);
+  if (data.playerName) sessionStorage.setItem('playerName', data.playerName);
+  if (data.isHost) sessionStorage.setItem('isHost', 'true');
+}
+
+function clearSession() {
+  sessionStorage.removeItem('roomCode');
+  sessionStorage.removeItem('playerName');
+  sessionStorage.removeItem('isHost');
+}
+
+function getSavedSession() {
+  const roomCode = sessionStorage.getItem('roomCode');
+  const playerName = sessionStorage.getItem('playerName');
+  const isHost = sessionStorage.getItem('isHost') === 'true';
+  if (!roomCode) return null;
+  return { roomCode, playerName: playerName || '', isHost };
+}
+
 export function useSocket() {
   const [connected, setConnected] = useState(socket.connected);
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
-    const onConnect = () => setConnected(true);
+    const onConnect = () => {
+      setConnected(true);
+
+      // Check if we have a saved session to reconnect to
+      const session = getSavedSession();
+      if (session) {
+        setReconnecting(true);
+        socket.emit(
+          'room:reconnect',
+          { roomCode: session.roomCode, playerName: session.playerName },
+          (res) => {
+            setReconnecting(false);
+            if (!res.success) {
+              // Stale session — clear it so user sees JoinRoom/CreateRoom
+              clearSession();
+            }
+          }
+        );
+      }
+    };
     const onDisconnect = () => setConnected(false);
 
     socket.on('connect', onConnect);
@@ -39,7 +91,7 @@ export function useSocket() {
     };
   }, []);
 
-  return { socket, connected };
+  return { socket, connected, reconnecting };
 }
 
 export function useGameState() {
@@ -81,6 +133,11 @@ export function useGameState() {
       setTimeout(() => setNotifications(prev => prev.slice(1)), 3000);
     };
 
+    const onPlayerReconnected = (data: { playerId: string; playerName: string }) => {
+      setNotifications(prev => [...prev, `${data.playerName} reconnected`]);
+      setTimeout(() => setNotifications(prev => prev.slice(1)), 3000);
+    };
+
     const onError = (data: { message: string }) => {
       setNotifications(prev => [...prev, `Error: ${data.message}`]);
       setTimeout(() => setNotifications(prev => prev.slice(1)), 5000);
@@ -92,6 +149,7 @@ export function useGameState() {
     socket.on('round:player-submitted', onPlayerSubmitted);
     socket.on('player:joined', onPlayerJoined);
     socket.on('player:left', onPlayerLeft);
+    socket.on('player:reconnected', onPlayerReconnected);
     socket.on('room:error', onError);
 
     return () => {
@@ -101,19 +159,30 @@ export function useGameState() {
       socket.off('round:player-submitted', onPlayerSubmitted);
       socket.off('player:joined', onPlayerJoined);
       socket.off('player:left', onPlayerLeft);
+      socket.off('player:reconnected', onPlayerReconnected);
       socket.off('room:error', onError);
     };
   }, []);
 
   const createRoom = useCallback((): Promise<{ success: boolean; roomCode?: string; error?: string }> => {
     return new Promise(resolve => {
-      socket.emit('room:create', resolve);
+      socket.emit('room:create', (res) => {
+        if (res.success && res.roomCode) {
+          saveSession({ roomCode: res.roomCode, isHost: true });
+        }
+        resolve(res);
+      });
     });
   }, []);
 
   const joinRoom = useCallback((roomCode: string, playerName: string): Promise<{ success: boolean; error?: string }> => {
     return new Promise(resolve => {
-      socket.emit('room:join', { roomCode, playerName }, resolve);
+      socket.emit('room:join', { roomCode, playerName }, (res) => {
+        if (res.success) {
+          saveSession({ roomCode: roomCode.toUpperCase(), playerName });
+        }
+        resolve(res);
+      });
     });
   }, []);
 
@@ -121,6 +190,7 @@ export function useGameState() {
     socket.emit('room:leave');
     setGameState(null);
     setLastGuessResult(null);
+    clearSession();
   }, []);
 
   const startGame = useCallback(() => {

@@ -32,14 +32,14 @@ export default function HostGameOver({ state, game }: Props) {
         {/* Final scoreboard */}
         <div>
           <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-4">Final Standings</h3>
-          <Leaderboard scoreboard={state.scoreboard} showRoundScore={false} />
+          <Leaderboard scoreboard={state.scoreboard} showRoundScore={false} players={state.players} />
         </div>
 
         {/* Guess history */}
         <div>
           <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-4">All Guesses</h3>
-          <div className="max-h-[60vh] overflow-y-auto">
-            <GuessHistory guesses={state.guessHistory} />
+          <div className="max-h-[75vh] overflow-y-auto">
+            <GuessHistory guesses={state.guessHistory} players={state.players} />
           </div>
         </div>
       </div>

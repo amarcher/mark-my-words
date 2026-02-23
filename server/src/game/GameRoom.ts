@@ -14,6 +14,7 @@ import {
   REVEAL_DISPLAY_TIME,
   ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
+  PLAYER_COLORS,
 } from '@mmw/shared';
 import { WordRanker } from '../words/WordRanker.js';
 import { AccoladeEngine } from '../accolades/AccoladeEngine.js';
@@ -28,7 +29,9 @@ export class GameRoom {
   private settings: RoomSettings = {
     maxRounds: MAX_ROUNDS,
     roundTime: DEFAULT_ROUND_TIME,
+    noRepeatWords: false,
   };
+  private colorIndex: number = 0;
 
   // Round state
   private currentRound: number = 0;
@@ -37,6 +40,7 @@ export class GameRoom {
   private roundTimer: ReturnType<typeof setInterval> | null = null;
   private timeRemaining: number = 0;
   private firstSubmitterId: string | null = null;
+  private cachedAccolades: Accolade[] = [];
   private usedSecretWords: string[] = [];
   private wordRanker: WordRanker = new WordRanker();
   private accoladeEngine: AccoladeEngine = new AccoladeEngine();
@@ -104,7 +108,9 @@ export class GameRoom {
   addPlayer(id: string, name: string): boolean {
     if (this.players.has(id)) return false;
 
-    this.players.set(id, { id, name, connected: true });
+    const color = PLAYER_COLORS[this.colorIndex % PLAYER_COLORS.length];
+    this.colorIndex++;
+    this.players.set(id, { id, name, connected: true, color });
     this.scores.set(id, 0);
 
     // First player to join becomes leader
@@ -218,6 +224,9 @@ export class GameRoom {
     }
     if (partial.roundTime !== undefined) {
       this.settings.roundTime = Math.min(Math.max(partial.roundTime, 10), 120);
+    }
+    if (partial.noRepeatWords !== undefined) {
+      this.settings.noRepeatWords = !!partial.noRepeatWords;
     }
     this.touch();
     this.broadcastState();
@@ -336,6 +345,10 @@ export class GameRoom {
 
     const normalized = word.toLowerCase().trim();
 
+    if (this.settings.noRepeatWords && this.allGuesses.some(g => g.word === normalized)) {
+      return { success: false, error: 'Word already used in a previous round' };
+    }
+
     if (!this.wordRanker.isValidWord(normalized)) {
       return { success: false, error: 'Word not in vocabulary' };
     }
@@ -408,6 +421,7 @@ export class GameRoom {
     switch (this.phase) {
       case 'ROUND_REVEALING': {
         this.phase = 'ROUND_ACCOLADES';
+        this.cachedAccolades = this.generateAccolades();
         this.broadcastState();
         this.startPhaseTimer(ACCOLADES_DISPLAY_TIME);
         break;
@@ -439,6 +453,29 @@ export class GameRoom {
       default:
         break;
     }
+  }
+
+  endGame(): void {
+    if (this.phase === 'LOBBY' || this.phase === 'GAME_OVER') return;
+    this.clearTimer();
+    this.clearPhaseTimer();
+
+    // If ending during an active round, collect any submitted guesses
+    if (this.phase === 'ROUND_ACTIVE') {
+      const guesses = Array.from(this.roundGuesses.values());
+      this.allGuesses.push(...guesses);
+      this.accoladeEngine.recordRound(guesses);
+    }
+
+    // Generate accolades if they haven't been generated yet this round
+    if (this.phase === 'ROUND_ACTIVE' || this.phase === 'ROUND_REVEALING') {
+      this.cachedAccolades = this.generateAccolades();
+    }
+
+    this.phase = 'GAME_OVER';
+    this.paused = false;
+    this.touch();
+    this.broadcastState();
   }
 
   playAgain(): void {
@@ -547,9 +584,13 @@ export class GameRoom {
     return [...this.allGuesses].sort((a, b) => a.rank - b.rank); // best first
   }
 
-  private getAccolades(): Accolade[] {
+  private generateAccolades(): Accolade[] {
     const guesses = Array.from(this.roundGuesses.values());
     return this.accoladeEngine.generateAccolades(guesses, this.currentRound);
+  }
+
+  private getAccolades(): Accolade[] {
+    return this.cachedAccolades;
   }
 
   private getScoreboard(): ScoreEntry[] {

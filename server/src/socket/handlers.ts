@@ -86,9 +86,25 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
         playerName: socket.data.playerName || 'Unknown',
       });
 
-      roomManager.leaveRoom(socket.id);
+      // Leave the Socket.IO room BEFORE removing the player,
+      // so the broadcastState() triggered by removePlayer doesn't
+      // push a stale game:state back to this socket.
       socket.leave(roomCode);
       socket.data.roomCode = undefined as unknown as string;
+      roomManager.leaveRoom(socket.id);
+    });
+
+    socket.on('room:close', () => {
+      // Host closes the entire room
+      const roomCode = socket.data.roomCode;
+      if (!roomCode) return;
+
+      const room = roomManager.getRoom(roomCode);
+      if (!room || !room.isHost(socket.id)) return;
+
+      socket.leave(roomCode);
+      socket.data.roomCode = undefined as unknown as string;
+      roomManager.closeRoom(roomCode);
     });
 
     socket.on('room:reconnect', (data, callback) => {
@@ -183,6 +199,19 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
 
       const result = room.submitGuess(socket.id, data.word);
       callback(result);
+    });
+
+    socket.on('game:end', () => {
+      // Host or leader can end the game early
+      const hostRoom = roomManager.getRoomForHost(socket.id);
+      if (hostRoom) {
+        hostRoom.endGame();
+        return;
+      }
+      const playerRoom = roomManager.getRoomForPlayer(socket.id);
+      if (playerRoom && playerRoom.isLeader(socket.id)) {
+        playerRoom.endGame();
+      }
     });
 
     socket.on('game:play-again', () => {

@@ -5,6 +5,7 @@ import HostGame from './HostGame';
 import HostRoundResults from './HostRoundResults';
 import HostGameOver from './HostGameOver';
 import PauseOverlay from '../../components/PauseOverlay';
+import RoomClosedModal from '../../components/RoomClosedModal';
 
 export default function HostScreen() {
   const { connected, reconnecting } = useSocket();
@@ -41,19 +42,26 @@ export default function HostScreen() {
   // Not yet in a room — show create button
   if (!game.gameState) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6">
-        <h2 className="text-3xl font-bold mb-8">Host a Game</h2>
-        <div className="w-full max-w-xs space-y-4">
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            className="btn-primary w-full"
-          >
-            {creating ? 'Creating...' : 'Create Room'}
-          </button>
-          {error && <p className="text-rank-red text-sm text-center">{error}</p>}
+      <>
+        <div className="min-h-screen flex flex-col items-center justify-center p-6">
+          <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">
+            Mark My Words
+          </h1>
+          <div className="w-full max-w-xs space-y-4">
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="btn-primary w-full"
+            >
+              {creating ? 'Creating...' : 'Create Room'}
+            </button>
+            {error && <p className="text-rank-red text-sm text-center">{error}</p>}
+          </div>
         </div>
-      </div>
+        {game.roomClosedMessage && (
+          <RoomClosedModal message={game.roomClosedMessage} onDismiss={game.dismissRoomClosed} />
+        )}
+      </>
     );
   }
 
@@ -67,7 +75,8 @@ export default function HostScreen() {
           paused={gameState.paused}
           onPause={game.pause}
           onResume={game.resume}
-          onLeave={game.leaveRoom}
+          onLeave={game.closeRoom}
+          onEndGame={game.endGame}
         />
       )}
 

@@ -28,8 +28,8 @@ export default function HostGame({ state, game }: Props) {
       </div>
 
       {/* Guess history — the main display */}
-      <div className="w-full max-w-xl flex-1 overflow-y-auto">
-        <GuessHistory guesses={state.guessHistory} />
+      <div className="w-full max-w-4xl flex-1 overflow-y-auto">
+        <GuessHistory guesses={state.guessHistory} players={state.players} />
       </div>
 
       {/* Notifications */}

@@ -23,7 +23,13 @@ export default function PlayerList({ players, leaderId, currentPlayerId, onKick,
           }`}
         >
           {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+            style={{
+              backgroundColor: player.color ? `${player.color}33` : undefined,
+              color: player.color || undefined,
+            }}
+          >
             {player.name[0].toUpperCase()}
           </div>
 

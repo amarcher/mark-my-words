@@ -15,9 +15,9 @@ A multiplayer word-similarity guessing game. Players compete to find a secret wo
 
 ### Roles
 
-- **Host screen** (`/host`) — A passive display for a shared TV. Shows the room code, QR, incoming guesses, reveals, and scores. Cannot play.
-- **Leader** — The first player to join. Can start the game, kick players, and trigger "Play Again."
-- **Players** — Everyone who joins via `/play`. Submits guesses and sees personal feedback (rank, points, guess history).
+- **Host screen** (`/host`) — A passive display for a shared TV. Shows the room code, QR, incoming guesses, reveals, and scores. Can pause/resume and end the game early. Cannot play.
+- **Leader** — The first player to join. Can start the game, kick players, end the game early, and trigger "Play Again."
+- **Players** — Everyone who joins via `/play`. Submits guesses and sees personal feedback (rank, points, guess history). Game over screen shows final standings and all guesses.
 
 ## Local Development
 

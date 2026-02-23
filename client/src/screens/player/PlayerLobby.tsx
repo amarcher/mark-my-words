@@ -21,6 +21,9 @@ export default function PlayerLobby({ state, game }: Props) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <h1 className="text-2xl font-bold mb-4 bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">
+        Mark My Words
+      </h1>
       <RoomCode code={state.roomCode} size="sm" />
 
       <div className="w-full max-w-sm my-6">

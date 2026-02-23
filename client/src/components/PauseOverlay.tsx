@@ -3,9 +3,10 @@ interface Props {
   onPause: () => void;
   onResume: () => void;
   onLeave: () => void;
+  onEndGame: () => void;
 }
 
-export default function PauseOverlay({ paused, onPause, onResume, onLeave }: Props) {
+export default function PauseOverlay({ paused, onPause, onResume, onLeave, onEndGame }: Props) {
   return (
     <>
       {/* Floating controls */}
@@ -15,6 +16,12 @@ export default function PauseOverlay({ paused, onPause, onResume, onLeave }: Pro
           className="bg-bg-card/80 backdrop-blur border border-white/10 rounded-lg px-4 py-2 text-sm hover:bg-bg-card transition-colors"
         >
           {paused ? 'Resume' : 'Pause'}
+        </button>
+        <button
+          onClick={onEndGame}
+          className="bg-bg-card/80 backdrop-blur border border-amber-500/20 rounded-lg px-4 py-2 text-sm text-amber-400 hover:bg-amber-500/10 transition-colors"
+        >
+          End Game
         </button>
         <button
           onClick={onLeave}

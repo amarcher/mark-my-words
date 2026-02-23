@@ -65,10 +65,17 @@ export class RoomManager {
     if (room.getPhase() !== 'LOBBY') return { success: false, error: 'Game already in progress' };
     if (room.getPlayerCount() >= 12) return { success: false, error: 'Room is full' };
 
-    // Check for duplicate names
+    // Check for duplicate names (only among connected players)
     const existingPlayers = Array.from(room.getState().players);
-    if (existingPlayers.some(p => p.name.toLowerCase() === playerName.toLowerCase())) {
-      return { success: false, error: 'Name already taken' };
+    const duplicate = existingPlayers.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+    if (duplicate) {
+      if (duplicate.connected) {
+        return { success: false, error: 'Name already taken' };
+      }
+      // Remove the disconnected ghost so the new player can take the name
+      room.removePlayer(duplicate.id);
+      this.playerToRoom.delete(duplicate.id);
+      this.clearTokenForPlayer(duplicate.id);
     }
 
     room.addPlayer(playerId, playerName);
@@ -88,16 +95,14 @@ export class RoomManager {
     this.clearTokenForPlayer(playerId);
 
     if (room.getPlayerCount() === 0) {
-      room.destroy();
-      this.rooms.delete(roomCode);
-      // Clean up host mapping
-      for (const [hostId, rc] of this.hostToRoom) {
-        if (rc === roomCode) {
-          this.hostToRoom.delete(hostId);
-          this.clearTokenForHost(hostId);
-        }
-      }
+      this.destroyRoom(roomCode, room);
     }
+  }
+
+  closeRoom(roomCode: string): void {
+    const room = this.rooms.get(roomCode);
+    if (!room) return;
+    this.destroyRoom(roomCode, room);
   }
 
   kickPlayer(requesterId: string, targetId: string): boolean {
@@ -225,6 +230,29 @@ export class RoomManager {
     return room;
   }
 
+  private destroyRoom(roomCode: string, room: GameRoom): void {
+    // Notify all clients in the room before destroying
+    this.callbacks.broadcastToRoom(roomCode, 'room:closed', { message: 'The room was closed' });
+
+    room.destroy();
+    this.rooms.delete(roomCode);
+
+    // Clean up player mappings
+    for (const [playerId, rc] of this.playerToRoom) {
+      if (rc === roomCode) {
+        this.playerToRoom.delete(playerId);
+        this.clearTokenForPlayer(playerId);
+      }
+    }
+    // Clean up host mappings
+    for (const [hostId, rc] of this.hostToRoom) {
+      if (rc === roomCode) {
+        this.hostToRoom.delete(hostId);
+        this.clearTokenForHost(hostId);
+      }
+    }
+  }
+
   private clearTokenForPlayer(playerId: string): void {
     for (const [token, id] of this.tokenToPlayerId) {
       if (id === playerId) {
@@ -248,23 +276,7 @@ export class RoomManager {
     for (const [code, room] of this.rooms) {
       if (now - room.lastActivity > ROOM_INACTIVITY_TIMEOUT) {
         console.log(`Cleaning up inactive room: ${code}`);
-        room.destroy();
-        this.rooms.delete(code);
-
-        // Clean up player mappings
-        for (const [playerId, roomCode] of this.playerToRoom) {
-          if (roomCode === code) {
-            this.playerToRoom.delete(playerId);
-            this.clearTokenForPlayer(playerId);
-          }
-        }
-        // Clean up host mappings
-        for (const [hostId, roomCode] of this.hostToRoom) {
-          if (roomCode === code) {
-            this.hostToRoom.delete(hostId);
-            this.clearTokenForHost(hostId);
-          }
-        }
+        this.destroyRoom(code, room);
       }
     }
   }

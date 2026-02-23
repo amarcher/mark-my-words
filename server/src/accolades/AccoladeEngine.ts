@@ -5,28 +5,23 @@ interface PlayerHistory {
 }
 
 const WORST_TEMPLATES = [
-  `"{word}"?? Really, {player}? Rank {rank}. The word is hiding from you.`,
-  `{player} guessed "{word}" (rank {rank}). Bold strategy.`,
-  `Rank {rank}. {player}, the word filed a restraining order against "{word}".`,
-  `{player} really said "{word}" with their whole chest. Rank {rank}.`,
-  `"{word}" — rank {rank}. {player} is playing a different game entirely.`,
-  `{player}, "{word}" at rank {rank}? The GPS says recalculating...`,
+  `"{word}" — rank #{rank}`,
+  `"{word}" at #{rank}`,
 ];
 
 const EXPLORER_TEMPLATES = [
-  `{player} went where no guesser has gone before with "{word}" (rank {rank}).`,
-  `{player} boldly explored rank {rank} with "{word}". Uncharted territory.`,
-  `"{word}" at rank {rank}. {player} is on a solo expedition to the wrong continent.`,
+  `"{word}" — rank #{rank}`,
+  `"{word}" at #{rank}. Uncharted territory.`,
 ];
 
 const CLOSEST_TEMPLATES = [
-  `{player} is feeling it! "{word}" came in at rank {rank}.`,
-  `{player} locked in with "{word}" — rank {rank}. Respect.`,
+  `"{word}" — rank #{rank}`,
+  `"{word}" at #{rank}`,
 ];
 
 const GALAXY_TEMPLATES = [
-  `{player} with the galaxy brain play: "{word}" at rank {rank}!`,
-  `Rank {rank}! {player} can read the matrix with "{word}".`,
+  `"{word}" — rank #{rank}!`,
+  `"{word}" at #{rank}!`,
 ];
 
 function pickTemplate(templates: string[]): string {
@@ -129,7 +124,7 @@ export class AccoladeEngine {
           playerId: leapPlayer.playerId,
           playerName: leapPlayer.playerName,
           title: 'Biggest Leap',
-          description: `${leapPlayer.playerName} improved by ${biggestLeap} ranks! From the cold into the warmth.`,
+          description: `Improved by ${biggestLeap} ranks`,
           icon: '🚀',
           isPositive: true,
         });
@@ -146,7 +141,7 @@ export class AccoladeEngine {
               playerId: guess.playerId,
               playerName: guess.playerName,
               title: 'On Fire',
-              description: `${guess.playerName} has improved 3 rounds in a row! Unstoppable.`,
+              description: `3 rounds improving in a row`,
               icon: '🔥',
               isPositive: true,
             });
@@ -166,7 +161,7 @@ export class AccoladeEngine {
               playerId: guess.playerId,
               playerName: guess.playerName,
               title: 'Ice Cold',
-              description: `${guess.playerName} has gotten worse 3 rounds in a row. Sending thoughts and prayers.`,
+              description: `3 rounds getting colder`,
               icon: '🥶',
               isPositive: false,
             });

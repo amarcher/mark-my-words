@@ -5,6 +5,7 @@ import {
   REVEAL_DISPLAY_TIME,
   ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
+  PLAYER_COLORS,
 } from '@mmw/shared';
 
 // vi.hoisted runs before vi.mock, so these are available in the factory
@@ -620,6 +621,103 @@ describe('GameRoom', () => {
     });
   });
 
+  describe('endGame', () => {
+    it('transitions from ROUND_ACTIVE to GAME_OVER', () => {
+      const ids = startGame();
+      expect(room.getPhase()).toBe('ROUND_ACTIVE');
+      room.endGame();
+      expect(room.getPhase()).toBe('GAME_OVER');
+    });
+
+    it('does nothing in LOBBY', () => {
+      addPlayers(2);
+      room.endGame();
+      expect(room.getPhase()).toBe('LOBBY');
+    });
+
+    it('does nothing when already GAME_OVER', () => {
+      addPlayers(2);
+      room.updateSettings({ maxRounds: 1 });
+      room.startGame();
+      room.submitGuess('player0', 'test');
+      room.submitGuess('player1', 'test');
+      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      expect(room.getPhase()).toBe('GAME_OVER');
+      callbacks.onStateChange.mockClear();
+      room.endGame();
+      expect(room.getPhase()).toBe('GAME_OVER');
+      expect(callbacks.onStateChange).not.toHaveBeenCalled();
+    });
+
+    it('collects submitted guesses when ending during ROUND_ACTIVE', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.endGame();
+      const state = room.getState();
+      if (state.phase === 'GAME_OVER') {
+        expect(state.guessHistory.length).toBe(1);
+      }
+    });
+
+    it('generates accolades when ending during ROUND_ACTIVE', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test2');
+      room.endGame();
+      const state = room.getState();
+      if (state.phase === 'GAME_OVER') {
+        expect(state.accolades.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('clears paused state', () => {
+      startGame();
+      room.pause();
+      expect(room.isPaused()).toBe(true);
+      room.endGame();
+      expect(room.isPaused()).toBe(false);
+    });
+
+    it('works from ROUND_REVEALING phase', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+      room.endGame();
+      expect(room.getPhase()).toBe('GAME_OVER');
+    });
+
+    it('works from ROUND_ACCOLADES phase', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+      expect(room.getPhase()).toBe('ROUND_ACCOLADES');
+      room.endGame();
+      expect(room.getPhase()).toBe('GAME_OVER');
+    });
+
+    it('works from ROUND_SCOREBOARD phase', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+      expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
+      room.endGame();
+      expect(room.getPhase()).toBe('GAME_OVER');
+    });
+
+    it('broadcasts state', () => {
+      startGame();
+      callbacks.onStateChange.mockClear();
+      room.endGame();
+      expect(callbacks.onStateChange).toHaveBeenCalled();
+    });
+  });
+
   describe('Host management', () => {
     it('setHost and getHostSocketId', () => {
       room.setHost('host-1');
@@ -680,6 +778,101 @@ describe('GameRoom', () => {
       if (state.phase === 'GAME_OVER') {
         expect(state.secretWord).toBe('apple');
       }
+    });
+  });
+
+  describe('Player color assignment', () => {
+    it('assigns a color from PLAYER_COLORS to each player', () => {
+      room.addPlayer('p1', 'Alice');
+      const player = room.getPlayer('p1');
+      expect(player?.color).toBe(PLAYER_COLORS[0]);
+    });
+
+    it('assigns different colors to different players', () => {
+      room.addPlayer('p1', 'Alice');
+      room.addPlayer('p2', 'Bob');
+      const p1 = room.getPlayer('p1');
+      const p2 = room.getPlayer('p2');
+      expect(p1?.color).toBe(PLAYER_COLORS[0]);
+      expect(p2?.color).toBe(PLAYER_COLORS[1]);
+    });
+
+    it('wraps around color palette after 12 players', () => {
+      for (let i = 0; i < 13; i++) {
+        room.addPlayer(`p${i}`, `Player${i}`);
+      }
+      const p12 = room.getPlayer('p12');
+      expect(p12?.color).toBe(PLAYER_COLORS[0]);
+    });
+
+    it('includes color in getState().players', () => {
+      room.addPlayer('p1', 'Alice');
+      const state = room.getState();
+      expect(state.players[0].color).toBe(PLAYER_COLORS[0]);
+    });
+  });
+
+  describe('noRepeatWords setting', () => {
+    it('defaults to false', () => {
+      const state = room.getState();
+      if (state.phase === 'LOBBY') {
+        expect(state.settings.noRepeatWords).toBe(false);
+      }
+    });
+
+    it('can be enabled via updateSettings', () => {
+      room.updateSettings({ noRepeatWords: true });
+      const state = room.getState();
+      if (state.phase === 'LOBBY') {
+        expect(state.settings.noRepeatWords).toBe(true);
+      }
+    });
+
+    it('can be toggled back to false', () => {
+      room.updateSettings({ noRepeatWords: true });
+      room.updateSettings({ noRepeatWords: false });
+      const state = room.getState();
+      if (state.phase === 'LOBBY') {
+        expect(state.settings.noRepeatWords).toBe(false);
+      }
+    });
+
+    it('rejects a word used in a previous round when enabled', () => {
+      addPlayers(2);
+      room.updateSettings({ noRepeatWords: true, maxRounds: 3 });
+      room.startGame();
+
+      // Round 1: both submit
+      room.submitGuess('player0', 'hello');
+      room.submitGuess('player1', 'world');
+      // Advance through result phases to round 2
+      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      expect(room.getPhase()).toBe('ROUND_ACTIVE');
+
+      // Round 2: try to reuse "hello" — should be rejected
+      const result = room.submitGuess('player0', 'hello');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already used');
+    });
+
+    it('allows repeated words when setting is disabled', () => {
+      addPlayers(2);
+      room.updateSettings({ noRepeatWords: false, maxRounds: 3 });
+      room.startGame();
+
+      // Round 1
+      room.submitGuess('player0', 'hello');
+      room.submitGuess('player1', 'world');
+      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      expect(room.getPhase()).toBe('ROUND_ACTIVE');
+
+      // Round 2: reuse "hello" — should be allowed
+      const result = room.submitGuess('player0', 'hello');
+      expect(result.success).toBe(true);
     });
   });
 });

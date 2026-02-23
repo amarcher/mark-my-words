@@ -1,10 +1,11 @@
-import type { ScoreEntry } from '@mmw/shared';
+import type { ScoreEntry, Player } from '@mmw/shared';
 
 interface LeaderboardProps {
   scoreboard: ScoreEntry[];
   showRoundScore?: boolean;
   compact?: boolean;
   submittedIds?: string[];
+  players?: Player[];
 }
 
 const POSITION_COLORS: Record<number, string> = {
@@ -19,7 +20,9 @@ const POSITION_ICONS: Record<number, string> = {
   3: '🥉',
 };
 
-export default function Leaderboard({ scoreboard, showRoundScore = true, compact = false, submittedIds }: LeaderboardProps) {
+export default function Leaderboard({ scoreboard, showRoundScore = true, compact = false, submittedIds, players }: LeaderboardProps) {
+  const playerColorMap = new Map(players?.map(p => [p.id, p.color]) ?? []);
+
   return (
     <div className={`w-full max-w-lg mx-auto ${compact ? 'space-y-1' : 'space-y-2'}`}>
       {scoreboard.map((entry, i) => {
@@ -44,7 +47,10 @@ export default function Leaderboard({ scoreboard, showRoundScore = true, compact
             </div>
 
             {/* Name */}
-            <div className="flex-1 font-semibold truncate">
+            <div
+              className="flex-1 font-semibold truncate"
+              style={{ color: playerColorMap.get(entry.playerId) || undefined }}
+            >
               {entry.playerName}
             </div>
 

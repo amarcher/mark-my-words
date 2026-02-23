@@ -8,6 +8,7 @@ import type {
 import RankBadge from '../../components/RankBadge';
 import AccoladeCard from '../../components/AccoladeCard';
 import Leaderboard from '../../components/Leaderboard';
+import GuessHistory from '../../components/GuessHistory';
 import { socket } from '../../socket';
 
 type ResultState = RoundRevealingState | RoundAccoladesState | RoundScoreboardState | GameOverState;
@@ -27,21 +28,49 @@ export default function PlayerResults({ state, game }: Props) {
   const leaderName = state.players.find(p => p.id === state.leaderId)?.name;
 
   if (state.phase === 'GAME_OVER') {
+    const winner = state.scoreboard[0];
+
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6">
-        <div className="text-center mb-6 animate-scale-in">
+      <div className="min-h-screen flex flex-col items-center p-6">
+        <h1 className="text-xl font-bold mb-4 bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">
+          Mark My Words
+        </h1>
+        <div className="text-center mb-4 animate-scale-in">
           <p className="text-white/40 text-xs uppercase tracking-widest mb-2">The Secret Word Was</p>
           <h1 className="text-4xl font-bold text-accent">{state.secretWord}</h1>
         </div>
 
-        <Leaderboard scoreboard={state.scoreboard} showRoundScore={false} compact />
+        {/* Winner */}
+        {winner && (
+          <div className="text-center mb-6 animate-bounce-in">
+            <p className="text-2xl mb-1">👑</p>
+            <p className="text-lg font-bold text-gold">{winner.playerName}</p>
+            <p className="text-white/40 text-sm">{winner.totalScore.toLocaleString()} pts</p>
+          </div>
+        )}
+
+        {/* Final Standings */}
+        <div className="w-full max-w-sm mb-6">
+          <p className="text-white/30 text-xs uppercase tracking-widest mb-2 text-center">Final Standings</p>
+          <Leaderboard scoreboard={state.scoreboard} showRoundScore={false} players={state.players} compact />
+        </div>
+
+        {/* All Guesses */}
+        {state.guessHistory.length > 0 && (
+          <div className="w-full max-w-sm mb-6">
+            <p className="text-white/30 text-xs uppercase tracking-widest mb-2 text-center">All Guesses</p>
+            <div className="max-h-[40vh] overflow-y-auto rounded-lg">
+              <GuessHistory guesses={state.guessHistory} players={state.players} />
+            </div>
+          </div>
+        )}
 
         {isLeader ? (
-          <button onClick={game.playAgain} className="btn-primary text-lg px-12 mt-8">
+          <button onClick={game.playAgain} className="btn-primary text-lg px-12 mt-2">
             Play Again
           </button>
         ) : (
-          <p className="text-white/30 text-sm mt-8 animate-pulse">
+          <p className="text-white/30 text-sm mt-2 animate-pulse">
             Waiting for {leaderName || 'leader'}...
           </p>
         )}

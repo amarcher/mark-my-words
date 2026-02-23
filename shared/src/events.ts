@@ -11,11 +11,13 @@ export interface ClientToServerEvents {
   'room:create': (callback: (res: { success: boolean; roomCode?: string; error?: string }) => void) => void;
   'room:join': (data: { roomCode: string; playerName: string }, callback: (res: { success: boolean; error?: string }) => void) => void;
   'room:leave': () => void;
+  'room:close': () => void;
   'room:kick': (data: { playerId: string }) => void;
   'lobby:settings': (data: Partial<RoomSettings>) => void;
   'lobby:start': () => void;
   'game:guess': (data: { word: string }, callback: (res: { success: boolean; result?: GuessResult; error?: string }) => void) => void;
   'game:play-again': () => void;
+  'game:end': () => void;
   'game:pause': () => void;
   'game:resume': () => void;
   'room:reconnect': (
@@ -35,6 +37,7 @@ export interface ServerToClientEvents {
   'round:accolades': (data: { accolades: Accolade[] }) => void;
   'round:scoreboard': (data: { scoreboard: ScoreEntry[] }) => void;
   'game:over': (data: { secretWord: string; scoreboard: ScoreEntry[] }) => void;
+  'room:closed': (data: { message: string }) => void;
   'room:error': (data: { message: string }) => void;
   'player:joined': (data: { playerId: string; playerName: string }) => void;
   'player:left': (data: { playerId: string; playerName: string }) => void;

@@ -1,11 +1,12 @@
-import type { GuessResult } from '@mmw/shared';
+import type { GuessResult, Player } from '@mmw/shared';
 import { getRankColor } from '@mmw/shared';
 
 interface GuessHistoryProps {
   guesses: GuessResult[];
+  players?: Player[];
 }
 
-export default function GuessHistory({ guesses }: GuessHistoryProps) {
+export default function GuessHistory({ guesses, players }: GuessHistoryProps) {
   if (guesses.length === 0) {
     return (
       <div className="text-center text-white/20 py-8">
@@ -14,22 +15,25 @@ export default function GuessHistory({ guesses }: GuessHistoryProps) {
     );
   }
 
+  const playerColorMap = new Map(players?.map(p => [p.id, p.color]) ?? []);
+
   return (
-    <div className="w-full space-y-1">
+    <div className="w-full space-y-1.5">
       {guesses.map((guess, i) => {
         const color = getRankColor(guess.rank);
+        const playerColor = playerColorMap.get(guess.playerId);
         const isWin = guess.rank === 1;
 
         return (
           <div
             key={`${guess.word}-${guess.playerId}`}
-            className={`flex items-center gap-3 px-3 py-1.5 rounded-lg ${
+            className={`flex items-center gap-4 px-3 py-2 rounded-lg ${
               isWin ? 'bg-gold/10 border border-gold/30' : 'bg-white/[0.03]'
             }`}
           >
             {/* Rank */}
             <span
-              className="font-mono font-bold text-sm min-w-[3.5rem] text-right"
+              className="font-mono font-bold text-base min-w-[3.5rem] text-right"
               style={{ color }}
             >
               {isWin ? '★' : `#${guess.rank.toLocaleString()}`}
@@ -42,13 +46,24 @@ export default function GuessHistory({ guesses }: GuessHistoryProps) {
             />
 
             {/* Word */}
-            <span className="font-mono font-medium flex-1 truncate">
+            <span className="font-mono font-medium text-base flex-1 truncate">
               {guess.word}
             </span>
 
-            {/* Player name */}
-            <span className="text-white/30 text-xs truncate max-w-[6rem]">
-              {guess.playerName}
+            {/* Player name with color dot */}
+            <span className="flex items-center gap-1.5 text-sm truncate max-w-[8rem]">
+              {playerColor && (
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: playerColor }}
+                />
+              )}
+              <span
+                className="truncate"
+                style={{ color: playerColor || 'rgba(255,255,255,0.4)' }}
+              >
+                {guess.playerName}
+              </span>
             </span>
           </div>
         );

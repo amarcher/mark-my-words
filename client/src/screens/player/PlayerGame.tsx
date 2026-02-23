@@ -5,6 +5,8 @@ import GuessInput from '../../components/GuessInput';
 import Timer from '../../components/Timer';
 import RankBadge from '../../components/RankBadge';
 import ProximityBar from '../../components/ProximityBar';
+import GuessHistory from '../../components/GuessHistory';
+import Leaderboard from '../../components/Leaderboard';
 import { socket } from '../../socket';
 
 interface Props {
@@ -14,12 +16,14 @@ interface Props {
     lastGuessResult: GuessResult | null;
     timeRemaining: number;
     notifications: string[];
+    endGame: () => void;
   };
 }
 
 export default function PlayerGame({ state, game }: Props) {
   const [error, setError] = useState('');
   const hasSubmitted = state.round.submittedPlayerIds.includes(socket.id || '');
+  const isLeader = socket.id === state.leaderId;
 
   const handleGuess = async (word: string) => {
     setError('');
@@ -31,6 +35,9 @@ export default function PlayerGame({ state, game }: Props) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <h1 className="text-xl font-bold mb-3 bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">
+        Mark My Words
+      </h1>
       {/* Round info + Timer */}
       <div className="text-center mb-6">
         <p className="text-white/40 text-xs uppercase tracking-widest mb-2">
@@ -69,9 +76,43 @@ export default function PlayerGame({ state, game }: Props) {
       )}
 
       {/* Submission count */}
-      <p className="text-white/20 text-xs mt-8">
+      <p className="text-white/20 text-xs mt-6">
         {state.round.submittedPlayerIds.length} / {state.players.filter(p => p.connected).length} submitted
       </p>
+
+      {/* Standings + Previous guesses */}
+      {state.scoreboard.length > 0 && (
+        <div className="w-full max-w-sm mt-6 max-h-[40vh] overflow-y-auto rounded-lg">
+          <p className="text-white/30 text-xs uppercase tracking-widest mb-2 text-center">
+            Standings
+          </p>
+          <Leaderboard
+            scoreboard={state.scoreboard}
+            players={state.players}
+            submittedIds={state.round.submittedPlayerIds}
+            compact
+          />
+
+          {state.guessHistory.length > 0 && (
+            <div className="mt-4">
+              <p className="text-white/30 text-xs uppercase tracking-widest mb-2 text-center">
+                Previous Guesses
+              </p>
+              <GuessHistory guesses={state.guessHistory} players={state.players} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* End Game (leader only) */}
+      {isLeader && (
+        <button
+          onClick={game.endGame}
+          className="mt-6 text-sm text-amber-400 border border-amber-500/20 rounded-lg px-4 py-2 hover:bg-amber-500/10 transition-colors"
+        >
+          End Game
+        </button>
+      )}
 
       {/* Notifications */}
       <div className="fixed bottom-4 left-4 right-4 space-y-2">

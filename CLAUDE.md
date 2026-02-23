@@ -23,7 +23,7 @@ npx tsc --noEmit -p client/tsconfig.json
 fly deploy
 ```
 
-There are no tests.
+Tests use Vitest: `npx vitest run` (server + shared tests).
 
 ## Architecture
 
@@ -42,8 +42,9 @@ Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 
 ## Key Design Decisions
 
-- **Host ≠ player**: The `/host` screen is a passive TV display. It cannot submit guesses or have a name. It controls pause/resume/settings only.
-- **Leader model**: First player to join becomes "leader" (tracked via `leaderId`, not a field on `Player`). Leader can start game, kick players, trigger play again.
+- **Host ≠ player**: The `/host` screen is a passive TV display. It cannot submit guesses or have a name. It controls pause/resume/end game/settings only.
+- **Leader model**: First player to join becomes "leader" (tracked via `leaderId`, not a field on `Player`). Leader can start game, kick players, end game early, trigger play again.
+- **End Game**: Both the host and the leader can end a game early via `game:end` socket event. Transitions any active phase to GAME_OVER, revealing the secret word. Collects in-progress round data before transitioning.
 - **Production serving**: In `NODE_ENV=production`, Express serves `client/dist` as static files with SPA catch-all. No CORS needed (same origin). Uses `import.meta.url` for path resolution (ESM — no `__dirname`).
 - **Docker build quirk**: shared package must be built with `--composite false` in Docker to avoid a TypeScript incremental emit bug that skips `.d.ts` files.
 

@@ -35,9 +35,11 @@ function PhaseProgressBar({ timeRemaining, totalTime, paused }: { timeRemaining:
 }
 
 function RevealView({ state }: { state: RoundRevealingState }) {
+  const playerColorMap = new Map(state.players.map(p => [p.id, p.color]));
+
   return (
     <div className="min-h-screen flex flex-col items-center p-8">
-      <h2 className="text-2xl font-bold mb-6 text-white/60">The Results Are In...</h2>
+      <h2 className="text-3xl font-bold mb-6 text-white/60">The Results Are In...</h2>
 
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
         {/* Round guesses */}
@@ -50,13 +52,18 @@ function RevealView({ state }: { state: RoundRevealingState }) {
             >
               <RankBadge rank={guess.rank} size="md" />
               <div className="flex-1">
-                <p className="font-semibold">{guess.playerName}</p>
-                <p className="text-white/40 font-mono text-sm">"{guess.word}"</p>
+                <p
+                  className="font-semibold text-lg"
+                  style={{ color: playerColorMap.get(guess.playerId) || undefined }}
+                >
+                  {guess.playerName}
+                </p>
+                <p className="text-white/40 font-mono text-base">"{guess.word}"</p>
               </div>
               <div className="w-32">
                 <ProximityBar rank={guess.rank} showLabel={false} />
               </div>
-              <span className="font-mono text-accent text-sm">+{guess.points}</span>
+              <span className="font-mono text-accent text-base">+{guess.points}</span>
             </div>
           ))}
         </div>
@@ -64,8 +71,8 @@ function RevealView({ state }: { state: RoundRevealingState }) {
         {/* Guess history */}
         <div>
           <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-3">All Guesses</h3>
-          <div className="max-h-[60vh] overflow-y-auto">
-            <GuessHistory guesses={state.guessHistory} />
+          <div className="max-h-[75vh] overflow-y-auto">
+            <GuessHistory guesses={state.guessHistory} players={state.players} />
           </div>
         </div>
       </div>
@@ -81,24 +88,13 @@ function RevealView({ state }: { state: RoundRevealingState }) {
 
 function AccoladesView({ state }: { state: RoundAccoladesState }) {
   return (
-    <div className="min-h-screen flex flex-col items-center p-8">
-      <h2 className="text-2xl font-bold mb-6 text-white/60">Awards Ceremony</h2>
+    <div className="min-h-screen flex flex-col items-center justify-center p-8">
+      <h2 className="text-3xl font-bold mb-10 text-white/60">Awards Ceremony</h2>
 
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
-        {/* Accolades */}
-        <div className="space-y-4">
-          {state.accolades.map((accolade, i) => (
-            <AccoladeCard key={accolade.type + accolade.playerId} accolade={accolade} index={i} />
-          ))}
-        </div>
-
-        {/* Guess history */}
-        <div>
-          <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-3">All Guesses</h3>
-          <div className="max-h-[60vh] overflow-y-auto">
-            <GuessHistory guesses={state.guessHistory} />
-          </div>
-        </div>
+      <div className="flex flex-wrap justify-center gap-6">
+        {state.accolades.map((accolade, i) => (
+          <AccoladeCard key={accolade.type + accolade.playerId} accolade={accolade} index={i} players={state.players} />
+        ))}
       </div>
 
       <PhaseProgressBar
@@ -113,7 +109,7 @@ function AccoladesView({ state }: { state: RoundAccoladesState }) {
 function ScoreboardView({ state }: { state: RoundScoreboardState }) {
   return (
     <div className="min-h-screen flex flex-col items-center p-8">
-      <h2 className="text-2xl font-bold mb-2">Scoreboard</h2>
+      <h2 className="text-3xl font-bold mb-2">Scoreboard</h2>
       <p className="text-white/40 text-sm mb-6">
         Round {state.round.roundNumber} of {state.round.totalRounds}
       </p>
@@ -121,14 +117,14 @@ function ScoreboardView({ state }: { state: RoundScoreboardState }) {
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
         {/* Leaderboard */}
         <div>
-          <Leaderboard scoreboard={state.scoreboard} />
+          <Leaderboard scoreboard={state.scoreboard} players={state.players} />
         </div>
 
         {/* Guess history */}
         <div>
           <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-3">All Guesses</h3>
-          <div className="max-h-[60vh] overflow-y-auto">
-            <GuessHistory guesses={state.guessHistory} />
+          <div className="max-h-[75vh] overflow-y-auto">
+            <GuessHistory guesses={state.guessHistory} players={state.players} />
           </div>
         </div>
       </div>

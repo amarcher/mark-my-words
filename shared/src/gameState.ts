@@ -10,6 +10,7 @@ export interface Player {
   id: string;
   name: string;
   connected: boolean;
+  color: string;
 }
 
 export interface GuessResult {
@@ -61,6 +62,7 @@ export interface ScoreEntry {
 export interface RoomSettings {
   maxRounds: number;
   roundTime: number; // seconds
+  noRepeatWords: boolean;
 }
 
 interface BaseState {

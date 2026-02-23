@@ -99,9 +99,12 @@ export function useGameState() {
   const [lastGuessResult, setLastGuessResult] = useState<GuessResult | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [roomClosedMessage, setRoomClosedMessage] = useState<string | null>(null);
+  const leftRoomRef = useRef(false);
 
   useEffect(() => {
     const onState = (state: GameState) => {
+      if (leftRoomRef.current) return;
       setGameState(state);
       if (state.phase === 'ROUND_ACTIVE') {
         setTimeRemaining(state.round.timeRemaining);
@@ -143,6 +146,13 @@ export function useGameState() {
       setTimeout(() => setNotifications(prev => prev.slice(1)), 5000);
     };
 
+    const onRoomClosed = (data: { message: string }) => {
+      setGameState(null);
+      setLastGuessResult(null);
+      clearSession();
+      setRoomClosedMessage(data.message);
+    };
+
     socket.on('game:state', onState);
     socket.on('round:timer', onTimer);
     socket.on('round:guess-result', onGuessResult);
@@ -151,6 +161,7 @@ export function useGameState() {
     socket.on('player:left', onPlayerLeft);
     socket.on('player:reconnected', onPlayerReconnected);
     socket.on('room:error', onError);
+    socket.on('room:closed', onRoomClosed);
 
     return () => {
       socket.off('game:state', onState);
@@ -161,6 +172,7 @@ export function useGameState() {
       socket.off('player:left', onPlayerLeft);
       socket.off('player:reconnected', onPlayerReconnected);
       socket.off('room:error', onError);
+      socket.off('room:closed', onRoomClosed);
     };
   }, []);
 
@@ -168,6 +180,7 @@ export function useGameState() {
     return new Promise(resolve => {
       socket.emit('room:create', (res) => {
         if (res.success && res.roomCode) {
+          leftRoomRef.current = false;
           saveSession({ roomCode: res.roomCode, isHost: true });
         }
         resolve(res);
@@ -179,6 +192,7 @@ export function useGameState() {
     return new Promise(resolve => {
       socket.emit('room:join', { roomCode, playerName }, (res) => {
         if (res.success) {
+          leftRoomRef.current = false;
           saveSession({ roomCode: roomCode.toUpperCase(), playerName });
         }
         resolve(res);
@@ -187,7 +201,16 @@ export function useGameState() {
   }, []);
 
   const leaveRoom = useCallback(() => {
+    leftRoomRef.current = true;
     socket.emit('room:leave');
+    setGameState(null);
+    setLastGuessResult(null);
+    clearSession();
+  }, []);
+
+  const closeRoom = useCallback(() => {
+    leftRoomRef.current = true;
+    socket.emit('room:close');
     setGameState(null);
     setLastGuessResult(null);
     clearSession();
@@ -216,6 +239,10 @@ export function useGameState() {
     socket.emit('lobby:settings', settings as { maxRounds?: number; roundTime?: number });
   }, []);
 
+  const endGame = useCallback(() => {
+    socket.emit('game:end');
+  }, []);
+
   const pause = useCallback(() => {
     socket.emit('game:pause');
   }, []);
@@ -224,14 +251,22 @@ export function useGameState() {
     socket.emit('game:resume');
   }, []);
 
+  const dismissRoomClosed = useCallback(() => {
+    setRoomClosedMessage(null);
+  }, []);
+
   return {
     gameState,
     lastGuessResult,
     timeRemaining,
     notifications,
+    roomClosedMessage,
+    dismissRoomClosed,
     createRoom,
     joinRoom,
     leaveRoom,
+    closeRoom,
+    endGame,
     startGame,
     submitGuess,
     playAgain,

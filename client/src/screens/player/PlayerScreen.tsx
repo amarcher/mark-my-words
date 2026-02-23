@@ -4,6 +4,7 @@ import JoinRoom from './JoinRoom';
 import PlayerLobby from './PlayerLobby';
 import PlayerGame from './PlayerGame';
 import PlayerResults from './PlayerResults';
+import RoomClosedModal from '../../components/RoomClosedModal';
 
 export default function PlayerScreen() {
   const { roomCode: urlRoomCode } = useParams();
@@ -28,7 +29,14 @@ export default function PlayerScreen() {
 
   // Not yet in a room
   if (!game.gameState) {
-    return <JoinRoom game={game} initialRoomCode={urlRoomCode} />;
+    return (
+      <>
+        <JoinRoom game={game} initialRoomCode={urlRoomCode} />
+        {game.roomClosedMessage && (
+          <RoomClosedModal message={game.roomClosedMessage} onDismiss={game.dismissRoomClosed} />
+        )}
+      </>
+    );
   }
 
   const { gameState } = game;

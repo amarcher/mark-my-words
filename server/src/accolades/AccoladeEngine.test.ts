@@ -289,6 +289,68 @@ describe('AccoladeEngine', () => {
     });
   });
 
+  describe('Concise descriptions', () => {
+    it('closest description contains only word and rank', () => {
+      const guesses = [makeGuess({ rank: 42, word: 'banana' })];
+      const accolades = engine.generateAccolades(guesses, 1);
+      const closest = accolades.find(a => a.type === 'closest')!;
+      expect(closest.description).toContain('banana');
+      expect(closest.description).toContain('42');
+      // Should NOT contain the player name (kept short)
+      expect(closest.description).not.toContain('Alice');
+    });
+
+    it('worst description contains only word and rank', () => {
+      const guesses = [
+        makeGuess({ playerId: 'p1', rank: 50 }),
+        makeGuess({ playerId: 'p2', playerName: 'Bob', rank: 5000, word: 'zebra' }),
+      ];
+      const accolades = engine.generateAccolades(guesses, 1);
+      const worst = accolades.find(a => a.type === 'worst')!;
+      expect(worst.description).toContain('zebra');
+      expect(worst.description).toContain('5000');
+      expect(worst.description).not.toContain('Bob');
+    });
+
+    it('biggest_leap description is concise', () => {
+      engine.recordRound([makeGuess({ playerId: 'p1', rank: 500 })]);
+      const guesses = [makeGuess({ playerId: 'p1', rank: 100 })];
+      engine.recordRound(guesses);
+      const accolades = engine.generateAccolades(guesses, 2);
+      const leap = accolades.find(a => a.type === 'biggest_leap');
+      if (leap) {
+        expect(leap.description).toContain('400');
+        expect(leap.description).not.toContain('Alice');
+      }
+    });
+
+    it('on_fire description is concise', () => {
+      engine.recordRound([makeGuess({ playerId: 'p1', rank: 300 })]);
+      engine.recordRound([makeGuess({ playerId: 'p1', rank: 200 })]);
+      const round3 = [makeGuess({ playerId: 'p1', rank: 100 })];
+      engine.recordRound(round3);
+      const accolades = engine.generateAccolades(round3, 3);
+      const fire = accolades.find(a => a.type === 'on_fire');
+      if (fire) {
+        expect(fire.description).toContain('3 rounds');
+        expect(fire.description).not.toContain('Alice');
+      }
+    });
+
+    it('ice_cold description is concise', () => {
+      engine.recordRound([makeGuess({ playerId: 'p1', rank: 100 })]);
+      engine.recordRound([makeGuess({ playerId: 'p1', rank: 200 })]);
+      const round3 = [makeGuess({ playerId: 'p1', rank: 300 })];
+      engine.recordRound(round3);
+      const accolades = engine.generateAccolades(round3, 3);
+      const cold = accolades.find(a => a.type === 'ice_cold');
+      if (cold) {
+        expect(cold.description).toContain('3 rounds');
+        expect(cold.description).not.toContain('Alice');
+      }
+    });
+  });
+
   describe('reset', () => {
     it('clears all player histories', () => {
       engine.recordRound([makeGuess({ playerId: 'p1', rank: 300 })]);

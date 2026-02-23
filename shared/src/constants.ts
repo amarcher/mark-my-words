@@ -52,6 +52,21 @@ export function getRankZone(rank: number): string {
   return 'red';
 }
 
+export const PLAYER_COLORS = [
+  '#6c63ff', // purple
+  '#f472b6', // pink
+  '#38bdf8', // sky blue
+  '#fb923c', // orange
+  '#a78bfa', // lavender
+  '#34d399', // emerald
+  '#fbbf24', // gold
+  '#f87171', // red
+  '#2dd4bf', // teal
+  '#e879f9', // fuchsia
+  '#818cf8', // indigo
+  '#a3e635', // lime
+];
+
 export function getRankColor(rank: number): string {
   if (rank <= 1) return RANK_ZONES.WIN.color;
   if (rank <= 300) return RANK_ZONES.GREEN.color;

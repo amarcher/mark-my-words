@@ -17,6 +17,10 @@ export default function HostLobby({ state, game }: Props) {
 
   return (
     <div className="min-h-screen flex flex-col items-center p-8">
+      <h1 className="text-4xl font-bold mb-6 bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">
+        Mark My Words
+      </h1>
+
       {/* Room Code + QR */}
       <div className="mb-8 flex flex-col items-center">
         <RoomCode code={state.roomCode} />
@@ -57,6 +61,15 @@ export default function HostLobby({ state, game }: Props) {
             </select>
           </div>
         </div>
+        <label className="flex items-center gap-3 mt-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={state.settings.noRepeatWords}
+            onChange={e => game.updateSettings({ noRepeatWords: e.target.checked })}
+            className="w-4 h-4 rounded border-white/20 bg-white/5 text-accent focus:ring-accent"
+          />
+          <span className="text-sm text-white/60">No repeat words across rounds</span>
+        </label>
       </div>
 
       {/* Players */}

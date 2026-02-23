@@ -29,7 +29,7 @@ Tests use Vitest: `npx vitest run` (server + shared tests).
 
 Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 
-**shared** (`@mmw/shared`) — TypeScript types and constants used by both server and client. Exports game phase types (discriminated union on `phase`), socket event interfaces, scoring constants, and rank helpers. Must be rebuilt before server/client can see type changes.
+**shared** (`@mmw/shared`) — TypeScript types and constants used by both server and client. Exports game phase types (discriminated union on `phase`), socket event interfaces, advancement scoring (`calculateAdvancementScore`, `INITIAL_TEAM_BEST`), and rank helpers. Must be rebuilt before server/client can see type changes.
 
 **server** (`@mmw/server`) — Express + Socket.io (ESM, `"type": "module"`). Game logic is a server-authoritative state machine:
 - `RoomManager` — room lifecycle, player↔room mapping, host↔room mapping, auto-cleanup of inactive rooms
@@ -44,6 +44,7 @@ Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 
 - **Host ≠ player**: The `/host` screen is a passive TV display. It cannot submit guesses or have a name. It controls pause/resume/end game/settings only.
 - **Leader model**: First player to join becomes "leader" (tracked via `leaderId`, not a field on `Player`). Leader can start game, kick players, end game early, trigger play again.
+- **Advancement scoring**: Points are based on how much a guess advances the team toward the secret word. Formula: `score = round(100 * ln(teamBest / guessRank))`. `teamBest` starts at 50,000 and tracks the lowest rank seen across all rounds. Only guesses that beat `teamBest` earn points; non-advancing guesses score 0. Equal proportional improvements (e.g. 10x closer) always yield equal points (~230). `teamBest` is part of `BaseState` so all phases can display it.
 - **End Game**: Both the host and the leader can end a game early via `game:end` socket event. Transitions any active phase to GAME_OVER, revealing the secret word. Collects in-progress round data before transitioning.
 - **Production serving**: In `NODE_ENV=production`, Express serves `client/dist` as static files with SPA catch-all. No CORS needed (same origin). Uses `import.meta.url` for path resolution (ESM — no `__dirname`).
 - **Docker build quirk**: shared package must be built with `--composite false` in Docker to avoid a TypeScript incremental emit bug that skips `.d.ts` files.

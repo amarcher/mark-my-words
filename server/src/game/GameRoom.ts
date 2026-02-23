@@ -6,8 +6,8 @@ import {
   type ScoreEntry,
   type RoomSettings,
   type Accolade,
-  getPointsForRank,
-  FIRST_SUBMIT_BONUS,
+  calculateAdvancementScore,
+  INITIAL_TEAM_BEST,
   DEFAULT_ROUND_TIME,
   MAX_ROUNDS,
   MIN_PLAYERS,
@@ -51,6 +51,7 @@ export class GameRoom {
   private phaseTotalTime: number = 0;
 
   // Scoring
+  private teamBest: number = INITIAL_TEAM_BEST;
   private scores: Map<string, number> = new Map();
   private previousPositions: Map<string, number> = new Map();
 
@@ -249,6 +250,7 @@ export class GameRoom {
     this.usedSecretWords.push(secretWord);
     this.currentRound = 0;
     this.allGuesses = [];
+    this.teamBest = INITIAL_TEAM_BEST;
     this.scores.clear();
     for (const p of this.players.keys()) this.scores.set(p, 0);
     this.previousPositions.clear();
@@ -359,7 +361,7 @@ export class GameRoom {
     const wasFirst = this.firstSubmitterId === null;
     if (wasFirst) this.firstSubmitterId = playerId;
 
-    const points = getPointsForRank(rank) + (wasFirst ? FIRST_SUBMIT_BONUS : 0);
+    const points = calculateAdvancementScore(this.teamBest, rank);
 
     const result: GuessResult = {
       playerId,
@@ -403,6 +405,11 @@ export class GameRoom {
 
     // Accumulate all guesses across rounds
     this.allGuesses.push(...guesses);
+
+    // Update team best from this round's guesses
+    for (const g of guesses) {
+      if (g.rank < this.teamBest) this.teamBest = g.rank;
+    }
 
     // Record for accolades
     this.accoladeEngine.recordRound(guesses);
@@ -501,6 +508,7 @@ export class GameRoom {
       leaderId: this.leaderId,
       paused: this.paused,
       guessHistory: this.getSortedHistory(),
+      teamBest: this.teamBest,
     };
 
     switch (this.phase) {

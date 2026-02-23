@@ -20,30 +20,20 @@ export const RANK_ZONES = {
   RED: { max: Infinity, color: '#ef4444', label: 'Ice Cold' },
 } as const;
 
-// Scoring tiers
-export const SCORING_TIERS = [
-  { maxRank: 1, points: 1000 },
-  { maxRank: 10, points: 500 },
-  { maxRank: 50, points: 300 },
-  { maxRank: 150, points: 200 },
-  { maxRank: 300, points: 100 },
-  { maxRank: 1500, points: 50 },
-  { maxRank: Infinity, points: 10 },
-] as const;
+// Advancement-based scoring
+export const INITIAL_TEAM_BEST = 50000;
+export const SCORE_MULTIPLIER = 100;
 
-export const FIRST_SUBMIT_BONUS = 10;
+export function calculateAdvancementScore(teamBest: number, guessRank: number): number {
+  if (guessRank >= teamBest) return 0;
+  return Math.round(SCORE_MULTIPLIER * Math.log(teamBest / guessRank));
+}
 
 // Phase auto-advance display durations (seconds)
 export const REVEAL_DISPLAY_TIME = 8;
 export const ACCOLADES_DISPLAY_TIME = 8;
 export const SCOREBOARD_DISPLAY_TIME = 6;
 
-export function getPointsForRank(rank: number): number {
-  for (const tier of SCORING_TIERS) {
-    if (rank <= tier.maxRank) return tier.points;
-  }
-  return 10;
-}
 
 export function getRankZone(rank: number): string {
   if (rank <= 1) return 'win';

@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { GameState } from '@mmw/shared';
 import {
-  FIRST_SUBMIT_BONUS,
   REVEAL_DISPLAY_TIME,
   ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
   PLAYER_COLORS,
+  INITIAL_TEAM_BEST,
+  calculateAdvancementScore,
 } from '@mmw/shared';
 
 // vi.hoisted runs before vi.mock, so these are available in the factory
@@ -320,28 +321,33 @@ describe('GameRoom', () => {
       expect(result.result).toBeDefined();
     });
 
-    it('gives correct points based on rank', () => {
-      mockWordRankerInstance.getRank.mockReturnValue(5); // rank 5 = 500 points
+    it('gives correct points based on advancement', () => {
+      mockWordRankerInstance.getRank.mockReturnValue(5); // rank 5, teamBest starts at 50000
       const ids = startGame();
       const result = room.submitGuess(ids[0], 'test');
-      // First submit bonus = 10, base = 500
-      expect(result.result?.points).toBe(500 + FIRST_SUBMIT_BONUS);
+      const expected = calculateAdvancementScore(INITIAL_TEAM_BEST, 5);
+      expect(result.result?.points).toBe(expected);
+      expect(expected).toBeGreaterThan(0);
     });
 
-    it('first submitter gets bonus', () => {
+    it('non-advancing guess scores 0', () => {
+      mockWordRankerInstance.getRank.mockReturnValue(50001); // worse than teamBest
+      const ids = startGame();
+      const result = room.submitGuess(ids[0], 'test');
+      expect(result.result?.points).toBe(0);
+    });
+
+    it('first submitter flag still set', () => {
       const ids = startGame();
       const result1 = room.submitGuess(ids[0], 'test');
       expect(result1.result?.wasFirst).toBe(true);
-      expect(result1.result?.points).toBeGreaterThan(0);
     });
 
-    it('second submitter does not get first bonus', () => {
-      mockWordRankerInstance.getRank.mockReturnValue(500); // rank 500 = 50 points tier (301-1500)
+    it('second submitter is not first', () => {
       const ids = startGame();
       room.submitGuess(ids[0], 'first');
       const result2 = room.submitGuess(ids[1], 'second');
       expect(result2.result?.wasFirst).toBe(false);
-      expect(result2.result?.points).toBe(50); // no bonus
     });
 
     it('calls onGuessResult callback', () => {

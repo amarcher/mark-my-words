@@ -72,6 +72,7 @@ interface BaseState {
   leaderId: string;
   paused: boolean;
   guessHistory: GuessResult[];
+  teamBest: number;
 }
 
 export interface LobbyState extends BaseState {

@@ -9,7 +9,7 @@ A multiplayer word-similarity guessing game. Players compete to find a secret wo
 1. **Host a game** — Open the app on a shared screen (TV, projector, laptop) and click "Host a Game." This creates a room with a 4-letter code and QR code.
 2. **Players join** — Each player opens the app on their phone, enters the room code (or scans the QR), and picks a display name.
 3. **Leader starts** — The first player to join becomes the "leader" and can start the game once 2+ players have joined.
-4. **Guess the word** — Each round, players submit guesses trying to find the secret word. After each guess you see your rank (how semantically close you are) and points earned. Lower rank = closer = more points.
+4. **Guess the word** — Each round, players submit guesses trying to find the secret word. After each guess you see your rank (how semantically close you are) and points earned. Points are based on advancement — bringing the team closer to the secret word earns more. Equal proportional improvements (e.g. 10x closer) always earn the same points regardless of absolute rank.
 5. **Round ends** — A round ends when someone finds the secret word, all players submit, or time runs out. Results are revealed, accolades are awarded, and the scoreboard updates.
 6. **Final scores** — After all rounds, the player with the most points wins.
 
@@ -71,7 +71,7 @@ npx tsc --noEmit -p client/tsconfig.json
 ### Project Structure
 
 ```
-shared/     — TypeScript types, constants, and scoring logic (used by both server and client)
+shared/     — TypeScript types, constants, and advancement scoring (used by both server and client)
 server/     — Express + Socket.io game server
   src/game/ — GameRoom (phase state machine) and RoomManager (room lifecycle)
   data/     — Word rankings (~405MB of precomputed semantic similarity data)

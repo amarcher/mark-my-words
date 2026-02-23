@@ -1,12 +1,13 @@
 interface Props {
   paused: boolean;
+  afkCountdown: number | null;
   onPause: () => void;
   onResume: () => void;
   onLeave: () => void;
   onEndGame: () => void;
 }
 
-export default function PauseOverlay({ paused, onPause, onResume, onLeave, onEndGame }: Props) {
+export default function PauseOverlay({ paused, afkCountdown, onPause, onResume, onLeave, onEndGame }: Props) {
   return (
     <>
       {/* Floating controls */}
@@ -35,7 +36,15 @@ export default function PauseOverlay({ paused, onPause, onResume, onLeave, onEnd
       {paused && (
         <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <div className="text-center">
-            <h2 className="text-6xl font-bold text-white/80 mb-4">PAUSED</h2>
+            {afkCountdown !== null ? (
+              <>
+                <p className="text-white/50 text-lg uppercase tracking-widest mb-2">No guesses received</p>
+                <h2 className="text-7xl font-bold text-amber-400 font-mono mb-2">{afkCountdown}</h2>
+                <p className="text-white/40 text-sm mb-6">Room closing in {afkCountdown}s</p>
+              </>
+            ) : (
+              <h2 className="text-6xl font-bold text-white/80 mb-4">PAUSED</h2>
+            )}
             <button
               onClick={onResume}
               className="btn-primary text-lg px-12"

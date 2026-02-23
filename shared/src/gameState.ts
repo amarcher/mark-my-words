@@ -71,6 +71,7 @@ interface BaseState {
   hostId: string;
   leaderId: string;
   paused: boolean;
+  afkCountdown: number | null;
   guessHistory: GuessResult[];
   teamBest: number;
 }

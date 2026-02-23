@@ -34,6 +34,9 @@ export const REVEAL_DISPLAY_TIME = 8;
 export const ACCOLADES_DISPLAY_TIME = 8;
 export const SCOREBOARD_DISPLAY_TIME = 6;
 
+// AFK detection
+export const AFK_CLOSE_TIMEOUT = 60; // seconds until room closes after AFK pause
+
 
 export function getRankZone(rank: number): string {
   if (rank <= 1) return 'win';

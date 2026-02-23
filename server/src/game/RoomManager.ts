@@ -50,6 +50,9 @@ export class RoomManager {
       onPlayerSubmitted: (playerId: string, playerName: string) => {
         this.callbacks.broadcastToRoom(roomCode, 'round:player-submitted', { playerId, playerName });
       },
+      onAfkClose: () => {
+        this.closeRoom(roomCode);
+      },
     });
 
     room.setHost(hostSocketId);

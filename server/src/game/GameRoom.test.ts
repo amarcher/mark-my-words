@@ -42,6 +42,7 @@ function makeCallbacks() {
     onTimerTick: vi.fn(),
     onGuessResult: vi.fn(),
     onPlayerSubmitted: vi.fn(),
+    onAfkClose: vi.fn(),
   };
 }
 
@@ -398,12 +399,24 @@ describe('GameRoom', () => {
       expect(callbacks.onTimerTick).toHaveBeenCalledWith(expect.any(Number));
     });
 
-    it('ends round when timer reaches 0', () => {
+    it('ends round when timer reaches 0 with guesses', () => {
+      addPlayers(2);
+      room.updateSettings({ roundTime: 10 });
+      room.startGame();
+      room.submitGuess('player0', 'test');
+      vi.advanceTimersByTime(10_000);
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+    });
+
+    it('triggers AFK pause when timer reaches 0 with no guesses', () => {
       addPlayers(2);
       room.updateSettings({ roundTime: 10 });
       room.startGame();
       vi.advanceTimersByTime(10_000);
-      expect(room.getPhase()).toBe('ROUND_REVEALING');
+      expect(room.getPhase()).toBe('ROUND_ACTIVE');
+      expect(room.isPaused()).toBe(true);
+      const state = room.getState();
+      expect(state.afkCountdown).toBe(60);
     });
 
     it('does not decrement when paused', () => {

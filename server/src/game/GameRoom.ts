@@ -14,6 +14,7 @@ import {
   REVEAL_DISPLAY_TIME,
   ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
+  AFK_CLOSE_TIMEOUT,
   PLAYER_COLORS,
 } from '@mmw/shared';
 import { WordRanker } from '../words/WordRanker.js';
@@ -50,6 +51,10 @@ export class GameRoom {
   private phaseTimeRemaining: number = 0;
   private phaseTotalTime: number = 0;
 
+  // AFK detection
+  private afkTimer: ReturnType<typeof setInterval> | null = null;
+  private afkCountdown: number | null = null;
+
   // Scoring
   private teamBest: number = INITIAL_TEAM_BEST;
   private scores: Map<string, number> = new Map();
@@ -60,6 +65,7 @@ export class GameRoom {
   private onTimerTick: (timeRemaining: number) => void;
   private onGuessResult: (playerId: string, result: GuessResult) => void;
   private onPlayerSubmitted: (playerId: string, playerName: string) => void;
+  private onAfkClose: () => void;
 
   lastActivity: number = Date.now();
 
@@ -70,6 +76,7 @@ export class GameRoom {
       onTimerTick: (timeRemaining: number) => void;
       onGuessResult: (playerId: string, result: GuessResult) => void;
       onPlayerSubmitted: (playerId: string, playerName: string) => void;
+      onAfkClose: () => void;
     }
   ) {
     this.roomCode = roomCode;
@@ -77,6 +84,7 @@ export class GameRoom {
     this.onTimerTick = callbacks.onTimerTick;
     this.onGuessResult = callbacks.onGuessResult;
     this.onPlayerSubmitted = callbacks.onPlayerSubmitted;
+    this.onAfkClose = callbacks.onAfkClose;
   }
 
   touch(): void {
@@ -328,6 +336,18 @@ export class GameRoom {
 
   resume(): void {
     if (!this.paused) return;
+
+    if (this.afkCountdown !== null) {
+      // Resuming from AFK pause: clear AFK timer, rewind the empty round, start fresh
+      this.clearAfkTimer();
+      this.afkCountdown = null;
+      this.currentRound--; // empty round doesn't count
+      this.paused = false;
+      this.touch();
+      this.startNextRound();
+      return;
+    }
+
     this.paused = false;
     this.touch();
     this.broadcastState();
@@ -399,6 +419,13 @@ export class GameRoom {
 
   private endRound(): void {
     this.clearTimer();
+
+    // AFK detection: no guesses submitted this round
+    if (this.roundGuesses.size === 0) {
+      this.triggerAfkPause();
+      return;
+    }
+
     this.phase = 'ROUND_REVEALING';
 
     const guesses = Array.from(this.roundGuesses.values());
@@ -419,6 +446,30 @@ export class GameRoom {
 
     this.broadcastState();
     this.startPhaseTimer(revealTime);
+  }
+
+  private triggerAfkPause(): void {
+    this.paused = true;
+    this.afkCountdown = AFK_CLOSE_TIMEOUT;
+    this.broadcastState();
+
+    this.afkTimer = setInterval(() => {
+      if (this.afkCountdown === null) return;
+      this.afkCountdown--;
+      this.broadcastState();
+
+      if (this.afkCountdown <= 0) {
+        this.clearAfkTimer();
+        this.onAfkClose();
+      }
+    }, 1000);
+  }
+
+  private clearAfkTimer(): void {
+    if (this.afkTimer) {
+      clearInterval(this.afkTimer);
+      this.afkTimer = null;
+    }
   }
 
   // Auto-advance through result phases
@@ -507,6 +558,7 @@ export class GameRoom {
       hostId: this.hostSocketId,
       leaderId: this.leaderId,
       paused: this.paused,
+      afkCountdown: this.afkCountdown,
       guessHistory: this.getSortedHistory(),
       teamBest: this.teamBest,
     };
@@ -628,5 +680,6 @@ export class GameRoom {
   destroy(): void {
     this.clearTimer();
     this.clearPhaseTimer();
+    this.clearAfkTimer();
   }
 }

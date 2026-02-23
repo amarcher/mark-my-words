@@ -73,6 +73,7 @@ export default function HostScreen() {
       {showPauseOverlay && (
         <PauseOverlay
           paused={gameState.paused}
+          afkCountdown={gameState.afkCountdown}
           onPause={game.pause}
           onResume={game.resume}
           onLeave={game.closeRoom}

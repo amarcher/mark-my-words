@@ -122,6 +122,17 @@ export default function PlayerGame({ state, game }: Props) {
           </div>
         ))}
       </div>
+
+      {/* AFK pause overlay */}
+      {state.paused && state.afkCountdown !== null && (
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-white/50 text-sm uppercase tracking-widest mb-2">No guesses received</p>
+            <h2 className="text-5xl font-bold text-amber-400 font-mono mb-2">{state.afkCountdown}</h2>
+            <p className="text-white/40 text-sm">Room closing in {state.afkCountdown}s</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

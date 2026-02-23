@@ -153,6 +153,11 @@ export function useGameState() {
       setRoomClosedMessage(data.message);
     };
 
+    const onHintRevealed = (data: { word: string; rank: number }) => {
+      setNotifications(prev => [...prev, `Hint revealed: '${data.word}' (rank #${data.rank.toLocaleString()})`]);
+      setTimeout(() => setNotifications(prev => prev.slice(1)), 4000);
+    };
+
     socket.on('game:state', onState);
     socket.on('round:timer', onTimer);
     socket.on('round:guess-result', onGuessResult);
@@ -162,6 +167,7 @@ export function useGameState() {
     socket.on('player:reconnected', onPlayerReconnected);
     socket.on('room:error', onError);
     socket.on('room:closed', onRoomClosed);
+    socket.on('game:hint-revealed', onHintRevealed);
 
     return () => {
       socket.off('game:state', onState);
@@ -173,6 +179,7 @@ export function useGameState() {
       socket.off('player:reconnected', onPlayerReconnected);
       socket.off('room:error', onError);
       socket.off('room:closed', onRoomClosed);
+      socket.off('game:hint-revealed', onHintRevealed);
     };
   }, []);
 
@@ -251,6 +258,10 @@ export function useGameState() {
     socket.emit('game:resume');
   }, []);
 
+  const requestHint = useCallback(() => {
+    socket.emit('game:hint');
+  }, []);
+
   const dismissRoomClosed = useCallback(() => {
     setRoomClosedMessage(null);
   }, []);
@@ -274,6 +285,7 @@ export function useGameState() {
     updateSettings,
     pause,
     resume,
+    requestHint,
     setLastGuessResult,
   };
 }

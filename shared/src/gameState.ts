@@ -20,6 +20,7 @@ export interface GuessResult {
   rank: number;
   points: number;
   wasFirst: boolean;
+  isHint?: boolean;
 }
 
 export interface RoundData {
@@ -59,10 +60,19 @@ export interface ScoreEntry {
   currentPosition: number;
 }
 
+export type HintMode = 'none' | 'host' | 'vote';
+
+export interface HintVoteState {
+  votesNeeded: number;
+  currentVotes: number;
+  voterIds: string[];
+}
+
 export interface RoomSettings {
   maxRounds: number;
   roundTime: number; // seconds
   noRepeatWords: boolean;
+  hintMode: HintMode;
 }
 
 interface BaseState {
@@ -85,6 +95,10 @@ export interface RoundActiveState extends BaseState {
   phase: 'ROUND_ACTIVE';
   round: RoundData;
   scoreboard: ScoreEntry[];
+  hintAvailable: boolean;
+  hintMode: HintMode;
+  hintApproved?: boolean;
+  hintVote?: HintVoteState;
 }
 
 export interface RoundRevealingState extends BaseState {

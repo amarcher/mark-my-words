@@ -53,6 +53,9 @@ export class RoomManager {
       onAfkClose: () => {
         this.closeRoom(roomCode);
       },
+      onHintRevealed: (word: string, rank: number) => {
+        this.callbacks.broadcastToRoom(roomCode, 'game:hint-revealed', { word, rank });
+      },
     });
 
     room.setHost(hostSocketId);

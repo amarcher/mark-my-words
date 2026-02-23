@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateAdvancementScore, INITIAL_TEAM_BEST, getRankZone, getRankColor, RANK_ZONES } from './constants.js';
+import { calculateAdvancementScore, INITIAL_TEAM_BEST, getRankZone, getRankColor, RANK_ZONES, getHintTargetRange } from './constants.js';
 
 describe('calculateAdvancementScore', () => {
   it('returns 0 when guess does not advance (rank >= teamBest)', () => {
@@ -61,6 +61,34 @@ describe('getRankZone', () => {
 
   it('returns "red" for rank 50000', () => {
     expect(getRankZone(50000)).toBe('red');
+  });
+});
+
+describe('getHintTargetRange', () => {
+  it('returns ORANGE range when teamBest is in RED zone (>1500)', () => {
+    expect(getHintTargetRange(2000)).toEqual([301, 1500]);
+    expect(getHintTargetRange(50000)).toEqual([301, 1500]);
+  });
+
+  it('returns GREEN range when teamBest is in ORANGE zone (>300)', () => {
+    expect(getHintTargetRange(1500)).toEqual([51, 300]);
+    expect(getHintTargetRange(301)).toEqual([51, 300]);
+  });
+
+  it('returns GREEN_WARM range when teamBest is in GREEN zone (>50)', () => {
+    expect(getHintTargetRange(300)).toEqual([11, 50]);
+    expect(getHintTargetRange(51)).toEqual([11, 50]);
+  });
+
+  it('returns GREEN_HOT range when teamBest is in GREEN_WARM zone (>10)', () => {
+    expect(getHintTargetRange(50)).toEqual([2, 10]);
+    expect(getHintTargetRange(11)).toEqual([2, 10]);
+  });
+
+  it('returns null when teamBest is already very close (<=10)', () => {
+    expect(getHintTargetRange(10)).toBeNull();
+    expect(getHintTargetRange(5)).toBeNull();
+    expect(getHintTargetRange(1)).toBeNull();
   });
 });
 

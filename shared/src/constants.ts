@@ -37,6 +37,18 @@ export const SCOREBOARD_DISPLAY_TIME = 6;
 // AFK detection
 export const AFK_CLOSE_TIMEOUT = 60; // seconds until room closes after AFK pause
 
+// Hint system
+export const HINT_PLAYER_ID = '__hint__';
+export const HINT_PLAYER_NAME = 'Hint';
+
+export function getHintTargetRange(teamBest: number): [number, number] | null {
+  if (teamBest > 1500) return [301, 1500];    // RED → ORANGE
+  if (teamBest > 300) return [51, 300];        // ORANGE → GREEN
+  if (teamBest > 50) return [11, 50];          // GREEN → GREEN_WARM
+  if (teamBest > 10) return [2, 10];           // GREEN_WARM → GREEN_HOT
+  return null;                                  // already very close, no hint
+}
+
 
 export function getRankZone(rank: number): string {
   if (rank <= 1) return 'win';

@@ -221,6 +221,21 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
       room.playAgain();
     });
 
+    socket.on('game:hint', () => {
+      // Only players interact with hints (not the host/TV display)
+      const room = roomManager.getRoomForPlayer(socket.id);
+      if (!room) return;
+      const settings = room.getSettings();
+      if (settings.hintMode === 'host') {
+        // Leader grants hint
+        if (room.isLeader(socket.id)) {
+          room.approveHint();
+        }
+      } else if (settings.hintMode === 'vote') {
+        room.voteForHint(socket.id);
+      }
+    });
+
     socket.on('game:pause', () => {
       // Host (presenter) only
       const room = roomManager.getRoomForHost(socket.id);

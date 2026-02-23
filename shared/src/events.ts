@@ -20,6 +20,7 @@ export interface ClientToServerEvents {
   'game:end': () => void;
   'game:pause': () => void;
   'game:resume': () => void;
+  'game:hint': () => void;
   'room:reconnect': (
     data: { roomCode: string; playerName: string },
     callback: (res: { success: boolean; error?: string }) => void
@@ -37,6 +38,7 @@ export interface ServerToClientEvents {
   'round:accolades': (data: { accolades: Accolade[] }) => void;
   'round:scoreboard': (data: { scoreboard: ScoreEntry[] }) => void;
   'game:over': (data: { secretWord: string; scoreboard: ScoreEntry[] }) => void;
+  'game:hint-revealed': (data: { word: string; rank: number }) => void;
   'room:closed': (data: { message: string }) => void;
   'room:error': (data: { message: string }) => void;
   'player:joined': (data: { playerId: string; playerName: string }) => void;

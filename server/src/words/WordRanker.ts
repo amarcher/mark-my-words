@@ -70,6 +70,17 @@ export class WordRanker {
     return /^[a-z]{2,30}$/.test(normalized);
   }
 
+  getWordInRange(minRank: number, maxRank: number, exclude?: Set<string>): { word: string; rank: number } | null {
+    const candidates: { word: string; rank: number }[] = [];
+    for (const [word, rank] of this.rankings) {
+      if (rank >= minRank && rank <= maxRank && (!exclude || !exclude.has(word))) {
+        candidates.push({ word, rank });
+      }
+    }
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
   getSecretWord(): string {
     return this.secretWord;
   }

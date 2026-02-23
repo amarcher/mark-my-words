@@ -23,48 +23,62 @@ export default function GuessHistory({ guesses, players }: GuessHistoryProps) {
         const color = getRankColor(guess.rank);
         const playerColor = playerColorMap.get(guess.playerId);
         const isWin = guess.rank === 1;
+        const isHint = guess.isHint === true;
 
         return (
           <div
             key={`${guess.word}-${guess.playerId}`}
             className={`flex items-center gap-4 px-3 py-2 rounded-lg ${
-              isWin ? 'bg-gold/10 border border-gold/30' : 'bg-white/[0.03]'
+              isHint
+                ? 'bg-gradient-to-r from-amber-500/10 via-yellow-400/15 to-amber-500/10 border border-amber-400/25 hint-glow'
+                : isWin
+                  ? 'bg-gold/10 border border-gold/30'
+                  : 'bg-white/[0.03]'
             }`}
           >
             {/* Rank */}
             <span
               className="font-mono font-bold text-base min-w-[3.5rem] text-right"
-              style={{ color }}
+              style={{ color: isHint ? '#fcd34d' : color }}
             >
               {isWin ? '★' : `#${guess.rank.toLocaleString()}`}
             </span>
 
             {/* Color bar indicator */}
             <div
-              className="w-1 h-5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: color }}
+              className={`w-1 h-5 rounded-full flex-shrink-0 ${isHint ? 'bg-gradient-to-b from-amber-300 to-yellow-500' : ''}`}
+              style={isHint ? undefined : { backgroundColor: color }}
             />
 
             {/* Word */}
-            <span className="font-mono font-medium text-base flex-1 truncate">
+            <span
+              className="font-mono font-medium text-base flex-1 truncate"
+              style={isHint ? { color: '#fcd34d' } : undefined}
+            >
               {guess.word}
             </span>
 
             {/* Player name with color dot */}
-            <span className="flex items-center gap-1.5 text-sm truncate max-w-[8rem]">
-              {playerColor && (
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: playerColor }}
-                />
-              )}
-              <span
-                className="truncate"
-                style={{ color: playerColor || 'rgba(255,255,255,0.4)' }}
-              >
-                {guess.playerName}
+            {isHint ? (
+              <span className="text-sm text-amber-300 truncate max-w-[8rem]">
+                ✦ Hint
               </span>
-            </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm truncate max-w-[8rem]">
+                {playerColor && (
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: playerColor }}
+                  />
+                )}
+                <span
+                  className="truncate"
+                  style={{ color: playerColor || 'rgba(255,255,255,0.4)' }}
+                >
+                  {guess.playerName}
+                </span>
+              </span>
+            )}
           </div>
         );
       })}

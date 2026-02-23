@@ -32,6 +32,12 @@
   to { transform: translateX(-100%); }
 }
 
+@keyframes hintGlow {
+  0%, 100% { box-shadow: 0 0 4px rgba(252, 211, 77, 0.05); }
+  50% { box-shadow: 0 0 12px rgba(252, 211, 77, 0.15); }
+}
+.hint-glow { animation: hintGlow 3s ease-in-out infinite; }
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

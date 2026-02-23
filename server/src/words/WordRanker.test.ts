@@ -215,6 +215,60 @@ describe('WordRanker', () => {
     });
   });
 
+  describe('getWordInRange', () => {
+    let ranker: WordRanker;
+
+    beforeEach(() => {
+      ranker = new WordRanker();
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockImplementation((path: unknown) => {
+        if (typeof path === 'string' && path.includes('apple.json')) {
+          return JSON.stringify({ banana: 50, cherry: 200, dog: 1000, cat: 5000 });
+        }
+        if (typeof path === 'string' && path.includes('vocabulary.txt')) {
+          return 'apple\nbanana\ncherry\ndog\ncat\n';
+        }
+        return '';
+      });
+      ranker.loadRankings('apple');
+    });
+
+    it('returns a word within the specified range', () => {
+      const result = ranker.getWordInRange(100, 300);
+      expect(result).not.toBeNull();
+      expect(result!.word).toBe('cherry');
+      expect(result!.rank).toBe(200);
+    });
+
+    it('returns null when no words in range', () => {
+      const result = ranker.getWordInRange(10000, 20000);
+      expect(result).toBeNull();
+    });
+
+    it('includes words at exact min boundary', () => {
+      const result = ranker.getWordInRange(50, 50);
+      expect(result).not.toBeNull();
+      expect(result!.word).toBe('banana');
+    });
+
+    it('includes words at exact max boundary', () => {
+      const result = ranker.getWordInRange(1000, 1000);
+      expect(result).not.toBeNull();
+      expect(result!.word).toBe('dog');
+    });
+
+    it('excludes words in the exclude set', () => {
+      const result = ranker.getWordInRange(100, 300, new Set(['cherry']));
+      expect(result).toBeNull();
+    });
+
+    it('returns different word when one is excluded', () => {
+      const result = ranker.getWordInRange(40, 250, new Set(['banana']));
+      expect(result).not.toBeNull();
+      expect(result!.word).toBe('cherry');
+    });
+  });
+
   describe('getAvailableSecretWords', () => {
     it('returns word names without .json extension', () => {
       mockExistsSync.mockReturnValue(true);

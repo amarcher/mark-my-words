@@ -60,6 +60,18 @@ export default function HostLobby({ state, game }: Props) {
               ))}
             </select>
           </div>
+          <div className="col-span-2">
+            <label className="text-xs text-white/40 block mb-1">Hints</label>
+            <select
+              value={state.settings.hintMode}
+              onChange={e => game.updateSettings({ hintMode: e.target.value })}
+              className="input-field w-full text-sm"
+            >
+              <option value="none">Disabled</option>
+              <option value="host">Leader Grants Hints</option>
+              <option value="vote">Players Vote</option>
+            </select>
+          </div>
         </div>
         <label className="flex items-center gap-3 mt-4 cursor-pointer">
           <input

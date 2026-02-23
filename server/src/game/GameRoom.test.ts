@@ -16,6 +16,7 @@ const { mockWordRankerInstance, mockPickRandomSecretWord } = vi.hoisted(() => ({
     getRank: vi.fn().mockReturnValue(500),
     loadRankings: vi.fn().mockReturnValue(true),
     getSecretWord: vi.fn().mockReturnValue('apple'),
+    getWordInRange: vi.fn().mockReturnValue({ word: 'hintword', rank: 800 }),
   },
   mockPickRandomSecretWord: vi.fn().mockReturnValue('apple'),
 }));
@@ -27,6 +28,7 @@ vi.mock('../words/WordRanker.js', () => {
     getRank = mockWordRankerInstance.getRank;
     loadRankings = mockWordRankerInstance.loadRankings;
     getSecretWord = mockWordRankerInstance.getSecretWord;
+    getWordInRange = mockWordRankerInstance.getWordInRange;
 
     static pickRandomSecretWord = mockPickRandomSecretWord;
     static getAvailableSecretWords = vi.fn().mockReturnValue(['apple', 'banana']);
@@ -43,6 +45,7 @@ function makeCallbacks() {
     onGuessResult: vi.fn(),
     onPlayerSubmitted: vi.fn(),
     onAfkClose: vi.fn(),
+    onHintRevealed: vi.fn(),
   };
 }
 
@@ -58,6 +61,7 @@ describe('GameRoom', () => {
     mockWordRankerInstance.getRank.mockReturnValue(500);
     mockWordRankerInstance.loadRankings.mockReturnValue(true);
     mockWordRankerInstance.getSecretWord.mockReturnValue('apple');
+    mockWordRankerInstance.getWordInRange.mockReturnValue({ word: 'hintword', rank: 800 });
     mockPickRandomSecretWord.mockReturnValue('apple');
 
     callbacks = makeCallbacks();
@@ -844,10 +848,10 @@ describe('GameRoom', () => {
   });
 
   describe('noRepeatWords setting', () => {
-    it('defaults to false', () => {
+    it('defaults to true', () => {
       const state = room.getState();
       if (state.phase === 'LOBBY') {
-        expect(state.settings.noRepeatWords).toBe(false);
+        expect(state.settings.noRepeatWords).toBe(true);
       }
     });
 
@@ -904,6 +908,352 @@ describe('GameRoom', () => {
       // Round 2: reuse "hello" — should be allowed
       const result = room.submitGuess('player0', 'hello');
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('Hint system', () => {
+    describe('Settings', () => {
+      it('defaults hintMode to host', () => {
+        const state = room.getState();
+        if (state.phase === 'LOBBY') {
+          expect(state.settings.hintMode).toBe('host');
+        }
+      });
+
+      it('accepts valid hintMode values', () => {
+        room.updateSettings({ hintMode: 'vote' });
+        const state = room.getState();
+        if (state.phase === 'LOBBY') {
+          expect(state.settings.hintMode).toBe('vote');
+        }
+      });
+
+      it('accepts none hintMode', () => {
+        room.updateSettings({ hintMode: 'none' });
+        const state = room.getState();
+        if (state.phase === 'LOBBY') {
+          expect(state.settings.hintMode).toBe('none');
+        }
+      });
+
+      it('rejects invalid hintMode values', () => {
+        room.updateSettings({ hintMode: 'invalid' as any });
+        const state = room.getState();
+        if (state.phase === 'LOBBY') {
+          expect(state.settings.hintMode).toBe('host'); // unchanged
+        }
+      });
+    });
+
+    describe('getSettings', () => {
+      it('returns a copy of settings', () => {
+        const settings = room.getSettings();
+        expect(settings.hintMode).toBe('host');
+        expect(settings.maxRounds).toBe(10);
+      });
+    });
+
+    describe('giveHint', () => {
+      it('fails when hintMode is none', () => {
+        room.updateSettings({ hintMode: 'none' });
+        startGame();
+        const result = room.giveHint();
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('disabled');
+      });
+
+      it('succeeds and adds hint to guessHistory', () => {
+        startGame();
+        const result = room.giveHint();
+        expect(result.success).toBe(true);
+        const state = room.getState();
+        expect(state.guessHistory.some(g => g.isHint)).toBe(true);
+      });
+
+      it('hint has zero points', () => {
+        startGame();
+        room.giveHint();
+        const hint = room.getState().guessHistory.find(g => g.isHint);
+        expect(hint?.points).toBe(0);
+      });
+
+      it('hint uses HINT_PLAYER_ID and HINT_PLAYER_NAME', () => {
+        startGame();
+        room.giveHint();
+        const hint = room.getState().guessHistory.find(g => g.isHint);
+        expect(hint?.playerId).toBe('__hint__');
+        expect(hint?.playerName).toBe('Hint');
+      });
+
+      it('updates teamBest when hint rank is lower', () => {
+        mockWordRankerInstance.getWordInRange.mockReturnValue({ word: 'closer', rank: 800 });
+        startGame();
+        room.giveHint();
+        expect(room.getState().teamBest).toBe(800);
+      });
+
+      it('calls onHintRevealed callback', () => {
+        startGame();
+        room.giveHint();
+        expect(callbacks.onHintRevealed).toHaveBeenCalledWith('hintword', 800);
+      });
+
+      it('fails when no hint word available', () => {
+        mockWordRankerInstance.getWordInRange.mockReturnValue(null);
+        startGame();
+        const result = room.giveHint();
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('No hint word');
+      });
+
+      it('fails when teamBest is already close (<=10)', () => {
+        mockWordRankerInstance.getWordInRange.mockReturnValue({ word: 'veryclose', rank: 5 });
+        startGame();
+        room.giveHint(); // teamBest becomes 5
+        const result = room.giveHint();
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('close enough');
+      });
+
+      it('prevents reusing hint words', () => {
+        mockWordRankerInstance.getWordInRange.mockImplementation((_min: number, _max: number, exclude?: Set<string>) => {
+          if (exclude && exclude.has('hintword')) {
+            return { word: 'hintword2', rank: 700 };
+          }
+          return { word: 'hintword', rank: 800 };
+        });
+
+        startGame();
+        room.giveHint();
+        room.giveHint();
+        const secondCall = mockWordRankerInstance.getWordInRange.mock.calls[1];
+        expect(secondCall[2]).toBeInstanceOf(Set);
+        expect(secondCall[2].has('hintword')).toBe(true);
+      });
+    });
+
+    describe('approveHint (host mode)', () => {
+      it('sets hintApproved flag', () => {
+        startGame();
+        room.approveHint();
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          expect(state.hintApproved).toBe(true);
+        }
+      });
+
+      it('hint is given at round end, not immediately', () => {
+        startGame();
+        room.approveHint();
+        // Hint should NOT be given yet (still ROUND_ACTIVE)
+        expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
+
+        // End the round
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        // Now hint should have been given during endRound
+        expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
+      });
+
+      it('hint is NOT given if not approved', () => {
+        startGame();
+        // Don't approve
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
+      });
+
+      it('does nothing when not ROUND_ACTIVE', () => {
+        addPlayers(2);
+        room.approveHint(); // LOBBY phase
+        expect(room.isHintApproved()).toBe(false);
+      });
+
+      it('does nothing when hintMode is not host', () => {
+        room.updateSettings({ hintMode: 'vote' });
+        startGame();
+        room.approveHint();
+        expect(room.isHintApproved()).toBe(false);
+      });
+
+      it('resets between rounds', () => {
+        addPlayers(2);
+        room.updateSettings({ maxRounds: 3 });
+        room.startGame();
+        room.approveHint();
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+        expect(room.getPhase()).toBe('ROUND_ACTIVE');
+        expect(room.isHintApproved()).toBe(false); // reset for new round
+      });
+    });
+
+    describe('voteForHint', () => {
+      it('does nothing when hintMode is not vote', () => {
+        startGame(); // default hintMode is 'host'
+        room.voteForHint('player0');
+        // Should not add votes
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          expect(state.hintVote).toBeUndefined(); // host mode, no vote state
+        }
+      });
+
+      it('collects votes during round', () => {
+        room.updateSettings({ hintMode: 'vote' });
+        startGame();
+        room.voteForHint('player0');
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          expect(state.hintVote!.currentVotes).toBe(1);
+        }
+      });
+
+      it('hint is granted at reveal when votes reach strict majority', () => {
+        room.updateSettings({ hintMode: 'vote' });
+        startGame();
+        // 2 players, need >1 = 2 votes
+        room.voteForHint('player0');
+        room.voteForHint('player1');
+        // End the round to trigger reveal
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
+      });
+
+      it('hint is NOT granted at reveal when votes do not reach majority', () => {
+        room.updateSettings({ hintMode: 'vote' });
+        startGame();
+        // 2 players, need >1 = 2 votes. Only 1 vote.
+        room.voteForHint('player0');
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
+      });
+
+      it('requires strict majority (>50%, not >=50%) with 3 players', () => {
+        addPlayers(3);
+        room.updateSettings({ hintMode: 'vote' });
+        room.startGame();
+        // 3 players, need >1.5 = 2 votes. 1 is not enough.
+        room.voteForHint('player0');
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        room.submitGuess('player2', 'test');
+        expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
+      });
+
+      it('voter count is connected players only (not host)', () => {
+        room.setHost('host1');
+        room.updateSettings({ hintMode: 'vote' });
+        startGame();
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          // 2 players only, need >1 = 2
+          expect(state.hintVote!.votesNeeded).toBe(2);
+        }
+      });
+
+      it('clears votes after hint is given at reveal', () => {
+        room.updateSettings({ hintMode: 'vote', maxRounds: 3 });
+        startGame();
+        // 2 players, need 2 votes
+        room.voteForHint('player0');
+        room.voteForHint('player1');
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
+
+        // Advance to next round
+        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+        expect(room.getPhase()).toBe('ROUND_ACTIVE');
+
+        // Votes should be cleared for the new round
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          expect(state.hintVote!.currentVotes).toBe(0);
+        }
+      });
+    });
+
+    describe('ROUND_ACTIVE state includes hint fields', () => {
+      it('includes hintAvailable and hintMode', () => {
+        startGame();
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          expect(state.hintAvailable).toBe(true);
+          expect(state.hintMode).toBe('host');
+        }
+      });
+
+      it('includes hintVote when mode is vote', () => {
+        room.updateSettings({ hintMode: 'vote' });
+        startGame();
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          expect(state.hintVote).toBeDefined();
+          expect(state.hintVote!.currentVotes).toBe(0);
+          // 2 connected players, need >1 = 2
+          expect(state.hintVote!.votesNeeded).toBe(2);
+        }
+      });
+
+      it('does not include hintVote when mode is host', () => {
+        startGame();
+        const state = room.getState();
+        if (state.phase === 'ROUND_ACTIVE') {
+          expect(state.hintVote).toBeUndefined();
+        }
+      });
+    });
+
+    describe('noRepeatWords with hints', () => {
+      it('hint words do not block player guesses', () => {
+        room.updateSettings({ noRepeatWords: true });
+        mockWordRankerInstance.getWordInRange.mockReturnValue({ word: 'hello', rank: 800 });
+        startGame();
+        room.giveHint(); // hint word 'hello' added to allGuesses
+
+        // Player should still be able to guess 'hello'
+        mockWordRankerInstance.getRank.mockReturnValue(800);
+        const result = room.submitGuess('player0', 'hello');
+        expect(result.success).toBe(true);
+      });
+    });
+
+    describe('Lifecycle resets', () => {
+      it('clears hint state on playAgain', () => {
+        addPlayers(2);
+        room.updateSettings({ maxRounds: 1 });
+        room.startGame();
+        room.giveHint(); // uses 'hintword', adds to usedHintWords
+        room.submitGuess('player0', 'test');
+        room.submitGuess('player1', 'test');
+        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+        expect(room.getPhase()).toBe('GAME_OVER');
+
+        mockPickRandomSecretWord.mockReturnValue('banana');
+        room.playAgain();
+
+        // Capture the exclude set size at call time (before giveHint mutates it)
+        let excludeSizeAtCallTime = -1;
+        mockWordRankerInstance.getWordInRange.mockImplementation((_min: number, _max: number, exclude?: Set<string>) => {
+          excludeSizeAtCallTime = exclude ? exclude.size : 0;
+          return { word: 'newhint', rank: 700 };
+        });
+
+        room.startGame();
+        room.giveHint();
+        // The exclude set should be empty at the time getWordInRange was called
+        expect(excludeSizeAtCallTime).toBe(0);
+      });
     });
   });
 });

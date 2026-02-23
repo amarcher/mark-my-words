@@ -5,6 +5,8 @@ import {
   type GuessResult,
   type ScoreEntry,
   type RoomSettings,
+  type HintMode,
+  type HintVoteState,
   type Accolade,
   calculateAdvancementScore,
   INITIAL_TEAM_BEST,
@@ -16,6 +18,9 @@ import {
   SCOREBOARD_DISPLAY_TIME,
   AFK_CLOSE_TIMEOUT,
   PLAYER_COLORS,
+  HINT_PLAYER_ID,
+  HINT_PLAYER_NAME,
+  getHintTargetRange,
 } from '@mmw/shared';
 import { WordRanker } from '../words/WordRanker.js';
 import { AccoladeEngine } from '../accolades/AccoladeEngine.js';
@@ -30,7 +35,8 @@ export class GameRoom {
   private settings: RoomSettings = {
     maxRounds: MAX_ROUNDS,
     roundTime: DEFAULT_ROUND_TIME,
-    noRepeatWords: false,
+    noRepeatWords: true,
+    hintMode: 'host' as HintMode,
   };
   private colorIndex: number = 0;
 
@@ -45,6 +51,11 @@ export class GameRoom {
   private usedSecretWords: string[] = [];
   private wordRanker: WordRanker = new WordRanker();
   private accoladeEngine: AccoladeEngine = new AccoladeEngine();
+
+  // Hint state
+  private hintVotes: Set<string> = new Set();
+  private hintApproved: boolean = false; // host mode: host approved hint for this round
+  private usedHintWords: Set<string> = new Set();
 
   // Phase auto-advance timer
   private phaseTimer: ReturnType<typeof setInterval> | null = null;
@@ -66,6 +77,7 @@ export class GameRoom {
   private onGuessResult: (playerId: string, result: GuessResult) => void;
   private onPlayerSubmitted: (playerId: string, playerName: string) => void;
   private onAfkClose: () => void;
+  private onHintRevealed: (word: string, rank: number) => void;
 
   lastActivity: number = Date.now();
 
@@ -77,6 +89,7 @@ export class GameRoom {
       onGuessResult: (playerId: string, result: GuessResult) => void;
       onPlayerSubmitted: (playerId: string, playerName: string) => void;
       onAfkClose: () => void;
+      onHintRevealed: (word: string, rank: number) => void;
     }
   ) {
     this.roomCode = roomCode;
@@ -85,6 +98,7 @@ export class GameRoom {
     this.onGuessResult = callbacks.onGuessResult;
     this.onPlayerSubmitted = callbacks.onPlayerSubmitted;
     this.onAfkClose = callbacks.onAfkClose;
+    this.onHintRevealed = callbacks.onHintRevealed;
   }
 
   touch(): void {
@@ -237,6 +251,9 @@ export class GameRoom {
     if (partial.noRepeatWords !== undefined) {
       this.settings.noRepeatWords = !!partial.noRepeatWords;
     }
+    if (partial.hintMode !== undefined && ['none', 'host', 'vote'].includes(partial.hintMode)) {
+      this.settings.hintMode = partial.hintMode;
+    }
     this.touch();
     this.broadcastState();
   }
@@ -263,6 +280,9 @@ export class GameRoom {
     for (const p of this.players.keys()) this.scores.set(p, 0);
     this.previousPositions.clear();
     this.accoladeEngine.reset();
+    this.usedHintWords.clear();
+    this.hintVotes.clear();
+    this.hintApproved = false;
 
     this.startNextRound();
     return { success: true };
@@ -272,6 +292,8 @@ export class GameRoom {
     this.currentRound++;
     this.roundGuesses.clear();
     this.firstSubmitterId = null;
+    this.hintVotes.clear();
+    this.hintApproved = false;
     this.timeRemaining = this.settings.roundTime;
     this.phase = 'ROUND_ACTIVE';
 
@@ -357,6 +379,78 @@ export class GameRoom {
     return this.paused;
   }
 
+  // Hint system
+  getSettings(): RoomSettings {
+    return { ...this.settings };
+  }
+
+  isHintAvailable(): boolean {
+    return getHintTargetRange(this.teamBest) !== null;
+  }
+
+  approveHint(): void {
+    if (this.phase !== 'ROUND_ACTIVE') return;
+    if (this.settings.hintMode !== 'host') return;
+    if (!this.isHintAvailable()) return;
+    this.hintApproved = true;
+    this.broadcastState();
+  }
+
+  isHintApproved(): boolean {
+    return this.hintApproved;
+  }
+
+  giveHint(): { success: boolean; error?: string } {
+    if (this.settings.hintMode === 'none') return { success: false, error: 'Hints are disabled' };
+
+    const range = getHintTargetRange(this.teamBest);
+    if (!range) return { success: false, error: 'Team is already close enough' };
+
+    const [min, max] = range;
+    const result = this.wordRanker.getWordInRange(min, max, this.usedHintWords);
+    if (!result) return { success: false, error: 'No hint word available in range' };
+
+    const guessResult: GuessResult = {
+      playerId: HINT_PLAYER_ID,
+      playerName: HINT_PLAYER_NAME,
+      word: result.word,
+      rank: result.rank,
+      points: 0,
+      wasFirst: false,
+      isHint: true,
+    };
+
+    this.allGuesses.push(guessResult);
+    if (result.rank < this.teamBest) {
+      this.teamBest = result.rank;
+    }
+    this.usedHintWords.add(result.word);
+    this.hintVotes.clear();
+    this.touch();
+    this.onHintRevealed(result.word, result.rank);
+    this.broadcastState();
+    return { success: true };
+  }
+
+  /** Total voters = connected players (host/TV display does not vote) */
+  private getVoterCount(): number {
+    return this.getConnectedPlayerCount();
+  }
+
+  /** Strict majority: votes must exceed half of total voters */
+  private hintVotePassed(): boolean {
+    return this.hintVotes.size > Math.floor(this.getVoterCount() / 2);
+  }
+
+  voteForHint(voterId: string): void {
+    if (this.phase !== 'ROUND_ACTIVE') return;
+    if (this.settings.hintMode !== 'vote') return;
+    if (!this.isHintAvailable()) return;
+
+    this.hintVotes.add(voterId);
+    this.broadcastState();
+  }
+
   // Guess handling
   submitGuess(playerId: string, word: string): { success: boolean; result?: GuessResult; error?: string } {
     if (this.phase !== 'ROUND_ACTIVE') return { success: false, error: 'Round not active' };
@@ -367,7 +461,7 @@ export class GameRoom {
 
     const normalized = word.toLowerCase().trim();
 
-    if (this.settings.noRepeatWords && this.allGuesses.some(g => g.word === normalized)) {
+    if (this.settings.noRepeatWords && this.allGuesses.some(g => g.word === normalized && !g.isHint)) {
       return { success: false, error: 'Word already used in a previous round' };
     }
 
@@ -440,6 +534,14 @@ export class GameRoom {
 
     // Record for accolades
     this.accoladeEngine.recordRound(guesses);
+
+    // Grant hint at reveal time (not mid-round)
+    const shouldGiveHint =
+      (this.settings.hintMode === 'host' && this.hintApproved) ||
+      (this.settings.hintMode === 'vote' && this.hintVotePassed());
+    if (shouldGiveHint && this.isHintAvailable()) {
+      this.giveHint();
+    }
 
     // Calculate reveal display time: 2s per guess, min 5s, max REVEAL_DISPLAY_TIME
     const revealTime = Math.max(5, Math.min(guesses.length * 2, REVEAL_DISPLAY_TIME));
@@ -545,6 +647,9 @@ export class GameRoom {
     this.clearTimer();
     this.clearPhaseTimer();
     this.paused = false;
+    this.usedHintWords.clear();
+    this.hintVotes.clear();
+    this.hintApproved = false;
     this.touch();
     this.broadcastState();
   }
@@ -567,8 +672,8 @@ export class GameRoom {
       case 'LOBBY':
         return { ...base, phase: 'LOBBY', settings: { ...this.settings } };
 
-      case 'ROUND_ACTIVE':
-        return {
+      case 'ROUND_ACTIVE': {
+        const activeState: GameState = {
           ...base,
           phase: 'ROUND_ACTIVE',
           round: {
@@ -580,7 +685,19 @@ export class GameRoom {
             submittedPlayerIds: Array.from(this.roundGuesses.keys()),
           },
           scoreboard: this.getScoreboard(),
+          hintAvailable: this.isHintAvailable(),
+          hintMode: this.settings.hintMode,
+          hintApproved: this.hintApproved,
         };
+        if (this.settings.hintMode === 'vote') {
+          (activeState as import('@mmw/shared').RoundActiveState).hintVote = {
+            votesNeeded: Math.floor(this.getVoterCount() / 2) + 1,
+            currentVotes: this.hintVotes.size,
+            voterIds: Array.from(this.hintVotes),
+          };
+        }
+        return activeState;
+      }
 
       case 'ROUND_REVEALING':
         return {

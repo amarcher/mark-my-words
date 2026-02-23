@@ -739,6 +739,18 @@ describe('GameRoom', () => {
       room.setHost('host-1');
       expect(room.isHost('other')).toBe(false);
     });
+
+    it('isLeader returns true for leader (first player to join)', () => {
+      room.addPlayer('p1', 'Alice');
+      room.addPlayer('p2', 'Bob');
+      expect(room.isLeader('p1')).toBe(true);
+    });
+
+    it('isLeader returns false for non-leader', () => {
+      room.addPlayer('p1', 'Alice');
+      room.addPlayer('p2', 'Bob');
+      expect(room.isLeader('p2')).toBe(false);
+    });
   });
 
   describe('getState', () => {

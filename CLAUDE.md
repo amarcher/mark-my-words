@@ -43,7 +43,7 @@ Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 ## Key Design Decisions
 
 - **Host ≠ player**: The `/host` screen is a passive TV display. It cannot submit guesses or have a name. It controls pause/resume/end game/settings only.
-- **Leader model**: First player to join becomes "leader" (tracked via `leaderId`, not a field on `Player`). Leader can start game, kick players, end game early, trigger play again.
+- **Leader model**: First player to join becomes "leader" (tracked via `leaderId`, not a field on `Player`). Leader can start game, kick players, end game early, close the room, and trigger play again.
 - **Advancement scoring**: Points are based on how much a guess advances the team toward the secret word. Formula: `score = round(100 * ln(teamBest / guessRank))`. `teamBest` starts at 50,000 and tracks the lowest rank seen across all rounds. Only guesses that beat `teamBest` earn points; non-advancing guesses score 0. Equal proportional improvements (e.g. 10x closer) always yield equal points (~230). `teamBest` is part of `BaseState` so all phases can display it.
 - **End Game**: Both the host and the leader can end a game early via `game:end` socket event. Transitions any active phase to GAME_OVER, revealing the secret word. Collects in-progress round data before transitioning.
 - **Production serving**: In `NODE_ENV=production`, Express serves `client/dist` as static files with SPA catch-all. No CORS needed (same origin). Uses `import.meta.url` for path resolution (ESM — no `__dirname`).

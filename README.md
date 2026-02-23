@@ -10,14 +10,14 @@ A multiplayer word-similarity guessing game. Players compete to find a secret wo
 2. **Players join** — Each player opens the app on their phone, enters the room code (or scans the QR), and picks a display name.
 3. **Leader starts** — The first player to join becomes the "leader" and can start the game once 2+ players have joined.
 4. **Guess the word** — Each round, players submit guesses trying to find the secret word. After each guess you see your rank (how semantically close you are) and points earned. Points are based on advancement — bringing the team closer to the secret word earns more. Equal proportional improvements (e.g. 10x closer) always earn the same points regardless of absolute rank.
-5. **Round ends** — A round ends when someone finds the secret word, all players submit, or time runs out. Results are revealed, accolades are awarded, and the scoreboard updates.
-6. **Final scores** — After all rounds, the player with the most points wins.
+5. **Round ends** — A round ends when someone finds the secret word, all players submit, or time runs out. Results are revealed with all players' submissions ranked, accolades are awarded alongside round results, and the scoreboard updates.
+6. **Final scores** — After all rounds, the player with the most points wins. The leader can start a new game or close the room; other players can leave.
 
 ### Roles
 
 - **Host screen** (`/host`) — A passive display for a shared TV. Shows the room code, QR, incoming guesses, reveals, and scores. Can pause/resume and end the game early. Cannot play.
-- **Leader** — The first player to join. Can start the game, kick players, end the game early, and trigger "Play Again."
-- **Players** — Everyone who joins via `/play`. Submits guesses and sees personal feedback (rank, points, guess history). Game over screen shows final standings and all guesses.
+- **Leader** — The first player to join. Can start the game, kick players, end the game early, close the room, and trigger "Play Again."
+- **Players** — Everyone who joins via `/play`. Submits guesses and sees personal feedback (rank, points, guess history). Between rounds, players see all submissions stack-ranked with their own entry highlighted. Game over screen shows final standings and all guesses, with the option to leave.
 
 ## Local Development
 

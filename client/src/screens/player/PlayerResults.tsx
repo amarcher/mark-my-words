@@ -18,6 +18,8 @@ interface Props {
   game: {
     lastGuessResult: GuessResult | null;
     playAgain: () => void;
+    closeRoom: () => void;
+    leaveRoom: () => void;
     notifications: string[];
   };
 }
@@ -66,13 +68,23 @@ export default function PlayerResults({ state, game }: Props) {
         )}
 
         {isLeader ? (
-          <button onClick={game.playAgain} className="btn-primary text-lg px-12 mt-2">
-            Play Again
-          </button>
+          <div className="flex flex-col items-center gap-3 mt-2">
+            <button onClick={game.playAgain} className="btn-primary text-lg px-12">
+              Play Again
+            </button>
+            <button onClick={game.closeRoom} className="text-white/30 hover:text-white/50 text-sm transition-colors">
+              Close Room
+            </button>
+          </div>
         ) : (
-          <p className="text-white/30 text-sm mt-2 animate-pulse">
-            Waiting for {leaderName || 'leader'}...
-          </p>
+          <div className="flex flex-col items-center gap-3 mt-2">
+            <p className="text-white/30 text-sm animate-pulse">
+              Waiting for {leaderName || 'leader'}...
+            </p>
+            <button onClick={game.leaveRoom} className="text-white/30 hover:text-white/50 text-sm transition-colors">
+              Leave Room
+            </button>
+          </div>
         )}
       </div>
     );
@@ -127,45 +139,50 @@ export default function PlayerResults({ state, game }: Props) {
       <div className="min-h-screen flex flex-col items-center p-6">
         <h2 className="text-xl font-bold text-white/60 mb-4">Awards</h2>
 
-        {myAccolades.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 mb-6">
-            {myAccolades.map((a, i) => (
-              <AccoladeCard key={a.type} accolade={a} index={i} />
-            ))}
-          </div>
-        )}
-
-        <div className="w-full max-w-sm space-y-2">
-          <p className="text-white/30 text-xs uppercase tracking-widest text-center mb-2">Round Results</p>
-          {sortedGuesses.map((guess, i) => {
-            const isMe = guess.playerId === playerId;
-            return (
-              <div
-                key={guess.playerId}
-                className={`flex items-center gap-3 p-3 rounded-xl ${
-                  isMe
-                    ? 'bg-accent/10 border border-accent/30'
-                    : 'bg-bg-card/50 border border-white/5'
-                }`}
-              >
-                <RankBadge rank={guess.rank} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className={`font-semibold text-sm truncate ${isMe ? 'text-accent' : 'text-white/70'}`}>
-                    {isMe ? 'You' : guess.playerName}
-                  </p>
-                  <p className="text-white/40 font-mono text-xs truncate">"{guess.word}"</p>
+        <div className="w-full max-w-lg grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Round Results */}
+          <div className="space-y-2">
+            {sortedGuesses.map((guess, i) => {
+              const isMe = guess.playerId === playerId;
+              return (
+                <div
+                  key={guess.playerId}
+                  className={`flex items-center gap-3 p-3 rounded-xl ${
+                    isMe
+                      ? 'bg-accent/10 border border-accent/30'
+                      : 'bg-bg-card/50 border border-white/5'
+                  }`}
+                >
+                  <RankBadge rank={guess.rank} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold text-sm truncate ${isMe ? 'text-accent' : 'text-white/70'}`}>
+                      {isMe ? 'You' : guess.playerName}
+                    </p>
+                    <p className="text-white/40 font-mono text-xs truncate">"{guess.word}"</p>
+                  </div>
+                  <span className="font-mono text-accent text-sm shrink-0">+{guess.points}</span>
                 </div>
-                <span className="font-mono text-accent text-sm shrink-0">+{guess.points}</span>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          {/* Awards */}
+          {myAccolades.length > 0 && (
+            <div className="space-y-4">
+              <p className="text-white/30 text-xs uppercase tracking-widest text-center">Your Awards</p>
+              {myAccolades.map((a, i) => (
+                <AccoladeCard key={a.type} accolade={a} index={i} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   if (state.phase === 'ROUND_SCOREBOARD') {
-    const myEntry = state.scoreboard.find(e => e.playerId === playerId);
+    const sortedScoreboard = [...state.scoreboard].sort((a, b) => a.currentPosition - b.currentPosition);
+    const myEntry = sortedScoreboard.find(e => e.playerId === playerId);
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6">
@@ -176,7 +193,7 @@ export default function PlayerResults({ state, game }: Props) {
           </div>
         )}
 
-        <Leaderboard scoreboard={state.scoreboard} compact />
+        <Leaderboard scoreboard={sortedScoreboard} compact />
       </div>
     );
   }

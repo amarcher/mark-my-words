@@ -95,12 +95,12 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
     });
 
     socket.on('room:close', () => {
-      // Host closes the entire room
+      // Host or leader closes the entire room
       const roomCode = socket.data.roomCode;
       if (!roomCode) return;
 
       const room = roomManager.getRoom(roomCode);
-      if (!room || !room.isHost(socket.id)) return;
+      if (!room || (!room.isHost(socket.id) && !room.isLeader(socket.id))) return;
 
       socket.leave(roomCode);
       socket.data.roomCode = undefined as unknown as string;

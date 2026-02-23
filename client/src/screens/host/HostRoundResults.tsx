@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type {
   RoundRevealingState,
   RoundAccoladesState,
@@ -18,26 +18,19 @@ interface Props {
 }
 
 function PhaseProgressBar({ timeRemaining, totalTime, paused }: { timeRemaining: number; totalTime: number; paused: boolean }) {
-  const progress = totalTime > 0 ? (timeRemaining / totalTime) * 100 : 0;
-
-  // Defer transition until after first paint so the bar doesn't animate rightward on mount.
-  // Double-rAF ensures the browser has actually painted the initial width before enabling transition.
-  const [enableTransition, setEnableTransition] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setEnableTransition(true));
-    });
-    return () => cancelAnimationFrame(id);
-  }, []);
+  // Capture initial elapsed time on mount so re-renders don't restart the animation
+  const [initialElapsed] = useState(() => totalTime - timeRemaining);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 px-8 pb-6">
       <div className="h-1 bg-white/10 rounded-full overflow-hidden">
         <div
-          className={`h-full bg-accent rounded-full ${
-            enableTransition ? `transition-all duration-1000 ${paused ? '' : 'ease-linear'}` : ''
-          }`}
-          style={{ width: `${progress}%` }}
+          className="h-full w-full bg-accent rounded-full"
+          style={{
+            animation: `shrinkBar ${totalTime}s linear forwards`,
+            animationDelay: `-${initialElapsed}s`,
+            animationPlayState: paused ? 'paused' : 'running',
+          }}
         />
       </div>
       {paused && (
@@ -90,11 +83,6 @@ function RevealView({ state }: { state: RoundRevealingState }) {
         </div>
       </div>
 
-      <PhaseProgressBar
-        timeRemaining={state.phaseTimeRemaining}
-        totalTime={state.phaseTotalTime}
-        paused={state.paused}
-      />
     </div>
   );
 }
@@ -144,11 +132,6 @@ function AccoladesView({ state }: { state: RoundAccoladesState }) {
         </div>
       </div>
 
-      <PhaseProgressBar
-        timeRemaining={state.phaseTimeRemaining}
-        totalTime={state.phaseTotalTime}
-        paused={state.paused}
-      />
     </div>
   );
 }
@@ -176,22 +159,33 @@ function ScoreboardView({ state }: { state: RoundScoreboardState }) {
         </div>
       </div>
 
-      <PhaseProgressBar
-        timeRemaining={state.phaseTimeRemaining}
-        totalTime={state.phaseTotalTime}
-        paused={state.paused}
-      />
     </div>
   );
 }
 
 export default function HostRoundResults({ state, game }: Props) {
+  let content;
   switch (state.phase) {
     case 'ROUND_REVEALING':
-      return <RevealView state={state} />;
+      content = <RevealView state={state} />;
+      break;
     case 'ROUND_ACCOLADES':
-      return <AccoladesView state={state} />;
+      content = <AccoladesView state={state} />;
+      break;
     case 'ROUND_SCOREBOARD':
-      return <ScoreboardView state={state} />;
+      content = <ScoreboardView state={state} />;
+      break;
   }
+
+  return (
+    <>
+      {content}
+      <PhaseProgressBar
+        key={state.phase}
+        timeRemaining={state.phaseTimeRemaining}
+        totalTime={state.phaseTotalTime}
+        paused={state.paused}
+      />
+    </>
+  );
 }

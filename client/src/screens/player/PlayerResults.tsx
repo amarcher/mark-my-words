@@ -79,23 +79,41 @@ export default function PlayerResults({ state, game }: Props) {
   }
 
   if (state.phase === 'ROUND_REVEALING') {
-    const myGuess = state.revealedGuesses.find(g => g.playerId === playerId);
+    const sortedGuesses = [...state.revealedGuesses].sort((a, b) => a.rank - b.rank);
+    const hasMyGuess = sortedGuesses.some(g => g.playerId === playerId);
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6">
-        <h2 className="text-xl font-bold text-white/60 mb-6">Revealing results...</h2>
+      <div className="min-h-screen flex flex-col items-center p-6">
+        <h2 className="text-xl font-bold text-white/60 mb-4">Round Results</h2>
 
-        {myGuess && (
-          <div className="text-center animate-scale-in">
-            <p className="text-white/40 text-sm mb-2">Your guess</p>
-            <p className="text-xl font-mono font-bold mb-2">"{myGuess.word}"</p>
-            <RankBadge rank={myGuess.rank} />
-            <p className="text-accent font-mono mt-2">+{myGuess.points}</p>
-          </div>
-        )}
+        <div className="w-full max-w-sm space-y-2">
+          {sortedGuesses.map((guess, i) => {
+            const isMe = guess.playerId === playerId;
+            return (
+              <div
+                key={guess.playerId}
+                className={`flex items-center gap-3 p-3 rounded-xl animate-slide-up ${
+                  isMe
+                    ? 'bg-accent/10 border border-accent/30'
+                    : 'bg-bg-card/50 border border-white/5'
+                }`}
+                style={{ animationDelay: `${i * 150}ms` }}
+              >
+                <RankBadge rank={guess.rank} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className={`font-semibold text-sm truncate ${isMe ? 'text-accent' : 'text-white/70'}`}>
+                    {isMe ? 'You' : guess.playerName}
+                  </p>
+                  <p className="text-white/40 font-mono text-xs truncate">"{guess.word}"</p>
+                </div>
+                <span className="font-mono text-accent text-sm shrink-0">+{guess.points}</span>
+              </div>
+            );
+          })}
+        </div>
 
-        {!myGuess && (
-          <p className="text-white/30 animate-pulse">You didn't submit a guess this round</p>
+        {!hasMyGuess && (
+          <p className="text-white/30 text-sm mt-4">You didn't submit a guess this round</p>
         )}
       </div>
     );
@@ -103,20 +121,45 @@ export default function PlayerResults({ state, game }: Props) {
 
   if (state.phase === 'ROUND_ACCOLADES') {
     const myAccolades = state.accolades.filter(a => a.playerId === playerId);
+    const sortedGuesses = [...state.round.guesses].sort((a, b) => a.rank - b.rank);
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6">
-        <h2 className="text-xl font-bold text-white/60 mb-6">Awards</h2>
+      <div className="min-h-screen flex flex-col items-center p-6">
+        <h2 className="text-xl font-bold text-white/60 mb-4">Awards</h2>
 
-        {myAccolades.length > 0 ? (
-          <div className="space-y-4">
+        {myAccolades.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-4 mb-6">
             {myAccolades.map((a, i) => (
               <AccoladeCard key={a.type} accolade={a} index={i} />
             ))}
           </div>
-        ) : (
-          <p className="text-white/30">No awards for you this round</p>
         )}
+
+        <div className="w-full max-w-sm space-y-2">
+          <p className="text-white/30 text-xs uppercase tracking-widest text-center mb-2">Round Results</p>
+          {sortedGuesses.map((guess, i) => {
+            const isMe = guess.playerId === playerId;
+            return (
+              <div
+                key={guess.playerId}
+                className={`flex items-center gap-3 p-3 rounded-xl ${
+                  isMe
+                    ? 'bg-accent/10 border border-accent/30'
+                    : 'bg-bg-card/50 border border-white/5'
+                }`}
+              >
+                <RankBadge rank={guess.rank} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className={`font-semibold text-sm truncate ${isMe ? 'text-accent' : 'text-white/70'}`}>
+                    {isMe ? 'You' : guess.playerName}
+                  </p>
+                  <p className="text-white/40 font-mono text-xs truncate">"{guess.word}"</p>
+                </div>
+                <span className="font-mono text-accent text-sm shrink-0">+{guess.points}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import type {
   RoundRevealingState,
   RoundAccoladesState,
@@ -19,11 +20,23 @@ interface Props {
 function PhaseProgressBar({ timeRemaining, totalTime, paused }: { timeRemaining: number; totalTime: number; paused: boolean }) {
   const progress = totalTime > 0 ? (timeRemaining / totalTime) * 100 : 0;
 
+  // Defer transition until after first paint so the bar doesn't animate rightward on mount.
+  // Double-rAF ensures the browser has actually painted the initial width before enabling transition.
+  const [enableTransition, setEnableTransition] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setEnableTransition(true));
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   return (
-    <div className="w-full mt-6">
+    <div className="fixed bottom-0 left-0 right-0 px-8 pb-6">
       <div className="h-1 bg-white/10 rounded-full overflow-hidden">
         <div
-          className={`h-full bg-accent rounded-full transition-all duration-1000 ${paused ? '' : 'ease-linear'}`}
+          className={`h-full bg-accent rounded-full ${
+            enableTransition ? `transition-all duration-1000 ${paused ? '' : 'ease-linear'}` : ''
+          }`}
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -87,14 +100,48 @@ function RevealView({ state }: { state: RoundRevealingState }) {
 }
 
 function AccoladesView({ state }: { state: RoundAccoladesState }) {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8">
-      <h2 className="text-3xl font-bold mb-10 text-white/60">Awards Ceremony</h2>
+  const playerColorMap = new Map(state.players.map(p => [p.id, p.color]));
+  const sortedGuesses = [...state.round.guesses].sort((a, b) => a.rank - b.rank);
 
-      <div className="flex flex-wrap justify-center gap-6">
-        {state.accolades.map((accolade, i) => (
-          <AccoladeCard key={accolade.type + accolade.playerId} accolade={accolade} index={i} players={state.players} />
-        ))}
+  return (
+    <div className="min-h-screen flex flex-col items-center p-8">
+      <h2 className="text-3xl font-bold mb-6 text-white/60">Awards Ceremony</h2>
+
+      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+        {/* Round Results */}
+        <div className="space-y-3">
+          {sortedGuesses.map((guess, i) => (
+            <div
+              key={guess.playerId}
+              className="flex items-center gap-4 p-4 rounded-xl bg-bg-card/50 border border-white/5"
+            >
+              <RankBadge rank={guess.rank} size="md" />
+              <div className="flex-1">
+                <p
+                  className="font-semibold text-lg"
+                  style={{ color: playerColorMap.get(guess.playerId) || undefined }}
+                >
+                  {guess.playerName}
+                </p>
+                <p className="text-white/40 font-mono text-base">"{guess.word}"</p>
+              </div>
+              <div className="w-32">
+                <ProximityBar rank={guess.rank} showLabel={false} />
+              </div>
+              <span className="font-mono text-accent text-base">+{guess.points}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Awards */}
+        <div>
+          <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-3">Awards</h3>
+          <div className="flex flex-wrap justify-center gap-6">
+            {state.accolades.map((accolade, i) => (
+              <AccoladeCard key={accolade.type + accolade.playerId} accolade={accolade} index={i} players={state.players} />
+            ))}
+          </div>
+        </div>
       </div>
 
       <PhaseProgressBar

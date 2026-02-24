@@ -1,5 +1,6 @@
 import type { GameOverState } from '@mmw/shared';
 import Leaderboard from '../../components/Leaderboard';
+import WordConnections from '../../components/WordConnections';
 import GuessHistory from '../../components/GuessHistory';
 
 interface Props {
@@ -28,12 +29,26 @@ export default function HostGameOver({ state, game }: Props) {
         </div>
       )}
 
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
+      <div className={`w-full grid grid-cols-1 gap-8 flex-1 ${
+        Object.keys(state.wordBridges).length > 0
+          ? 'max-w-7xl lg:grid-cols-3'
+          : 'max-w-5xl lg:grid-cols-2'
+      }`}>
         {/* Final scoreboard */}
         <div>
           <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-4">Final Standings</h3>
           <Leaderboard scoreboard={state.scoreboard} showRoundScore={false} players={state.players} />
         </div>
+
+        {/* Word connections */}
+        {Object.keys(state.wordBridges).length > 0 && (
+          <div>
+            <h3 className="text-sm text-white/40 uppercase tracking-wider text-center mb-4">How It Connects</h3>
+            <div className="max-h-[75vh] overflow-y-auto">
+              <WordConnections secretWord={state.secretWord} guesses={state.guessHistory} wordBridges={state.wordBridges} />
+            </div>
+          </div>
+        )}
 
         {/* Guess history */}
         <div>

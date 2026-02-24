@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useSocket, useGameState } from '../../socket';
 import HostLobby from './HostLobby';
 import HostGame from './HostGame';
@@ -95,6 +96,20 @@ export default function HostScreen() {
             return <HostGameOver state={gameState} game={game} />;
         }
       })()}
+
+      {/* Small QR code for late joiners — visible in top bar during all non-lobby phases */}
+      {gameState.phase !== 'LOBBY' && (
+        <div className="fixed top-3 right-3 bg-white/10 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
+          <QRCodeSVG
+            value={`${window.location.origin}/play/${gameState.roomCode}`}
+            size={48}
+            bgColor="transparent"
+            fgColor="white"
+            level="L"
+          />
+          <span className="text-white/60 text-xs font-mono">{gameState.roomCode}</span>
+        </div>
+      )}
     </>
   );
 }

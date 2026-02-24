@@ -73,6 +73,7 @@ export interface RoomSettings {
   roundTime: number; // seconds
   noRepeatWords: boolean;
   hintMode: HintMode;
+  initialHint: boolean;
 }
 
 interface BaseState {
@@ -132,6 +133,7 @@ export interface GameOverState extends BaseState {
   secretWord: string;
   scoreboard: ScoreEntry[];
   accolades: Accolade[];
+  wordBridges: Record<string, string[]>;
 }
 
 export type GameState =

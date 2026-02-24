@@ -81,6 +81,19 @@ export class WordRanker {
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
+  getInitialHint(): { word: string; rank: number } | null {
+    const filePath = join(DATA_DIR, 'initial-hints.json');
+    if (!existsSync(filePath)) return null;
+    const data = JSON.parse(readFileSync(filePath, 'utf-8')) as Record<string, { word: string; rank: number }>;
+    return data[this.secretWord] ?? null;
+  }
+
+  getBridges(): Record<string, string[]> {
+    const filePath = join(DATA_DIR, 'bridges', `${this.secretWord}.json`);
+    if (!existsSync(filePath)) return {};
+    return JSON.parse(readFileSync(filePath, 'utf-8')) as Record<string, string[]>;
+  }
+
   getSecretWord(): string {
     return this.secretWord;
   }

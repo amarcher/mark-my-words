@@ -37,6 +37,7 @@ export class GameRoom {
     roundTime: DEFAULT_ROUND_TIME,
     noRepeatWords: true,
     hintMode: 'host' as HintMode,
+    initialHint: false,
   };
   private colorIndex: number = 0;
 
@@ -254,6 +255,9 @@ export class GameRoom {
     if (partial.hintMode !== undefined && ['none', 'host', 'vote'].includes(partial.hintMode)) {
       this.settings.hintMode = partial.hintMode;
     }
+    if (partial.initialHint !== undefined) {
+      this.settings.initialHint = !!partial.initialHint;
+    }
     this.touch();
     this.broadcastState();
   }
@@ -297,8 +301,35 @@ export class GameRoom {
     this.timeRemaining = this.settings.roundTime;
     this.phase = 'ROUND_ACTIVE';
 
+    if (this.settings.initialHint && this.currentRound === 1) {
+      this.giveInitialHint();
+    }
+
     this.broadcastState();
     this.startTimer();
+  }
+
+  private giveInitialHint(): void {
+    const result = this.wordRanker.getInitialHint();
+    if (!result) return;
+    if (this.usedHintWords.has(result.word)) return; // already given (e.g. AFK resume)
+
+    const guessResult: GuessResult = {
+      playerId: HINT_PLAYER_ID,
+      playerName: HINT_PLAYER_NAME,
+      word: result.word,
+      rank: result.rank,
+      points: 0,
+      wasFirst: false,
+      isHint: true,
+    };
+
+    this.allGuesses.push(guessResult);
+    if (result.rank < this.teamBest) {
+      this.teamBest = result.rank;
+    }
+    this.usedHintWords.add(result.word);
+    this.onHintRevealed(result.word, result.rank);
   }
 
   private startTimer(): void {
@@ -731,14 +762,22 @@ export class GameRoom {
           phaseTotalTime: this.phaseTotalTime,
         };
 
-      case 'GAME_OVER':
+      case 'GAME_OVER': {
+        const allBridges = this.wordRanker.getBridges();
+        const guessedWords = new Set(this.allGuesses.map(g => g.word));
+        const wordBridges: Record<string, string[]> = {};
+        for (const word of guessedWords) {
+          if (allBridges[word]) wordBridges[word] = allBridges[word];
+        }
         return {
           ...base,
           phase: 'GAME_OVER',
           secretWord: this.wordRanker.getSecretWord(),
           scoreboard: this.getScoreboard(),
           accolades: this.getAccolades(),
+          wordBridges,
         };
+      }
     }
   }
 

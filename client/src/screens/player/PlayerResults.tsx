@@ -8,6 +8,7 @@ import type {
 import RankBadge from '../../components/RankBadge';
 import AccoladeCard from '../../components/AccoladeCard';
 import Leaderboard from '../../components/Leaderboard';
+import WordConnections from '../../components/WordConnections';
 import GuessHistory from '../../components/GuessHistory';
 import { socket } from '../../socket';
 
@@ -56,6 +57,16 @@ export default function PlayerResults({ state, game }: Props) {
           <p className="text-white/30 text-xs uppercase tracking-widest mb-2 text-center">Final Standings</p>
           <Leaderboard scoreboard={state.scoreboard} showRoundScore={false} players={state.players} compact />
         </div>
+
+        {/* Word Connections */}
+        {Object.keys(state.wordBridges).length > 0 && (
+          <div className="w-full max-w-sm mb-6">
+            <p className="text-white/30 text-xs uppercase tracking-widest mb-2 text-center">How It Connects</p>
+            <div className="max-h-[40vh] overflow-y-auto rounded-lg">
+              <WordConnections secretWord={state.secretWord} guesses={state.guessHistory} wordBridges={state.wordBridges} />
+            </div>
+          </div>
+        )}
 
         {/* All Guesses */}
         {state.guessHistory.length > 0 && (

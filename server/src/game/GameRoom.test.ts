@@ -17,6 +17,7 @@ const { mockWordRankerInstance, mockPickRandomSecretWord } = vi.hoisted(() => ({
     loadRankings: vi.fn().mockReturnValue(true),
     getSecretWord: vi.fn().mockReturnValue('apple'),
     getWordInRange: vi.fn().mockReturnValue({ word: 'hintword', rank: 800 }),
+    getBridges: vi.fn().mockReturnValue({}),
   },
   mockPickRandomSecretWord: vi.fn().mockReturnValue('apple'),
 }));
@@ -29,6 +30,7 @@ vi.mock('../words/WordRanker.js', () => {
     loadRankings = mockWordRankerInstance.loadRankings;
     getSecretWord = mockWordRankerInstance.getSecretWord;
     getWordInRange = mockWordRankerInstance.getWordInRange;
+    getBridges = mockWordRankerInstance.getBridges;
 
     static pickRandomSecretWord = mockPickRandomSecretWord;
     static getAvailableSecretWords = vi.fn().mockReturnValue(['apple', 'banana']);

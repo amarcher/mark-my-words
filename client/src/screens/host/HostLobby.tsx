@@ -35,7 +35,7 @@ export default function HostLobby({ state, game }: Props) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-white/60 text-sm uppercase tracking-wider">Settings</h3>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="text-xs text-white/40 block mb-1">Rounds</label>
             <select
@@ -49,7 +49,7 @@ export default function HostLobby({ state, game }: Props) {
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/40 block mb-1">Round Timer</label>
+            <label className="text-xs text-white/40 block mb-1">Timer</label>
             <select
               value={state.settings.roundTime}
               onChange={e => game.updateSettings({ roundTime: Number(e.target.value) })}
@@ -60,16 +60,16 @@ export default function HostLobby({ state, game }: Props) {
               ))}
             </select>
           </div>
-          <div className="col-span-2">
+          <div>
             <label className="text-xs text-white/40 block mb-1">Hints</label>
             <select
               value={state.settings.hintMode}
               onChange={e => game.updateSettings({ hintMode: e.target.value })}
               className="input-field w-full text-sm"
             >
-              <option value="none">Disabled</option>
-              <option value="host">Leader Grants Hints</option>
-              <option value="vote">Players Vote</option>
+              <option value="none">Off</option>
+              <option value="host">Leader</option>
+              <option value="vote">Vote</option>
             </select>
           </div>
         </div>
@@ -81,6 +81,15 @@ export default function HostLobby({ state, game }: Props) {
             className="w-4 h-4 rounded border-white/20 bg-white/5 text-accent focus:ring-accent"
           />
           <span className="text-sm text-white/60">No repeat words across rounds</span>
+        </label>
+        <label className="flex items-center gap-3 mt-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={state.settings.initialHint}
+            onChange={e => game.updateSettings({ initialHint: e.target.checked })}
+            className="w-4 h-4 rounded border-white/20 bg-white/5 text-accent focus:ring-accent"
+          />
+          <span className="text-sm text-white/60">Initial hint (reveal a far word)</span>
         </label>
       </div>
 

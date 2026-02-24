@@ -1,0 +1,358 @@
+{
+  "airport": {
+    "rank": 40857,
+    "word": "teeth"
+  },
+  "apple": {
+    "rank": 40666,
+    "word": "trauma"
+  },
+  "armor": {
+    "rank": 41032,
+    "word": "professor"
+  },
+  "banana": {
+    "rank": 40741,
+    "word": "awesome"
+  },
+  "beach": {
+    "rank": 40989,
+    "word": "equation"
+  },
+  "bear": {
+    "rank": 42079,
+    "word": "voltage"
+  },
+  "blood": {
+    "rank": 41073,
+    "word": "marina"
+  },
+  "bone": {
+    "rank": 41766,
+    "word": "airport"
+  },
+  "book": {
+    "rank": 40278,
+    "word": "humidity"
+  },
+  "brain": {
+    "rank": 40841,
+    "word": "lease"
+  },
+  "bread": {
+    "rank": 41336,
+    "word": "enforcement"
+  },
+  "bridge": {
+    "rank": 42695,
+    "word": "diet"
+  },
+  "cake": {
+    "rank": 40290,
+    "word": "civil"
+  },
+  "camera": {
+    "rank": 40885,
+    "word": "dairy"
+  },
+  "car": {
+    "rank": 41780,
+    "word": "oral"
+  },
+  "castle": {
+    "rank": 43783,
+    "word": "protein"
+  },
+  "cat": {
+    "rank": 40560,
+    "word": "strategic"
+  },
+  "chair": {
+    "rank": 44025,
+    "word": "trace"
+  },
+  "cheese": {
+    "rank": 41838,
+    "word": "supporting"
+  },
+  "chocolate": {
+    "rank": 40021,
+    "word": "authority"
+  },
+  "church": {
+    "rank": 41667,
+    "word": "hilarious"
+  },
+  "climb": {
+    "rank": 41642,
+    "word": "commissioner"
+  },
+  "clock": {
+    "rank": 44557,
+    "word": "lied"
+  },
+  "cloud": {
+    "rank": 41449,
+    "word": "honestly"
+  },
+  "coffee": {
+    "rank": 41670,
+    "word": "scope"
+  },
+  "cook": {
+    "rank": 41794,
+    "word": "tattoo"
+  },
+  "crown": {
+    "rank": 41206,
+    "word": "hilarious"
+  },
+  "dance": {
+    "rank": 42486,
+    "word": "assessed"
+  },
+  "desert": {
+    "rank": 42052,
+    "word": "organ"
+  },
+  "diamond": {
+    "rank": 40405,
+    "word": "reply"
+  },
+  "dog": {
+    "rank": 41013,
+    "word": "inclusive"
+  },
+  "dolphin": {
+    "rank": 40424,
+    "word": "staff"
+  },
+  "dream": {
+    "rank": 42014,
+    "word": "assessed"
+  },
+  "eagle": {
+    "rank": 40764,
+    "word": "relevant"
+  },
+  "elephant": {
+    "rank": 42189,
+    "word": "mail"
+  },
+  "fight": {
+    "rank": 42220,
+    "word": "cylinder"
+  },
+  "fire": {
+    "rank": 42896,
+    "word": "adorable"
+  },
+  "forest": {
+    "rank": 43037,
+    "word": "screw"
+  },
+  "garden": {
+    "rank": 41107,
+    "word": "interference"
+  },
+  "gold": {
+    "rank": 42816,
+    "word": "annoying"
+  },
+  "guitar": {
+    "rank": 40359,
+    "word": "settlement"
+  },
+  "hand": {
+    "rank": 40525,
+    "word": "aurora"
+  },
+  "hat": {
+    "rank": 41935,
+    "word": "affect"
+  },
+  "heart": {
+    "rank": 41383,
+    "word": "shale"
+  },
+  "horse": {
+    "rank": 40127,
+    "word": "integration"
+  },
+  "hospital": {
+    "rank": 40694,
+    "word": "clever"
+  },
+  "iron": {
+    "rank": 40002,
+    "word": "bother"
+  },
+  "island": {
+    "rank": 41021,
+    "word": "pathetic"
+  },
+  "lamp": {
+    "rank": 41520,
+    "word": "foreign"
+  },
+  "library": {
+    "rank": 41965,
+    "word": "drunk"
+  },
+  "light": {
+    "rank": 40122,
+    "word": "cheat"
+  },
+  "mask": {
+    "rank": 41902,
+    "word": "senior"
+  },
+  "mirror": {
+    "rank": 41138,
+    "word": "colonel"
+  },
+  "moon": {
+    "rank": 40352,
+    "word": "mortgage"
+  },
+  "mountain": {
+    "rank": 41573,
+    "word": "reply"
+  },
+  "muscle": {
+    "rank": 42139,
+    "word": "deputy"
+  },
+  "museum": {
+    "rank": 41753,
+    "word": "drunk"
+  },
+  "music": {
+    "rank": 40448,
+    "word": "acre"
+  },
+  "ocean": {
+    "rank": 42956,
+    "word": "hack"
+  },
+  "paint": {
+    "rank": 40016,
+    "word": "mercy"
+  },
+  "phone": {
+    "rank": 40576,
+    "word": "aesthetic"
+  },
+  "pizza": {
+    "rank": 44425,
+    "word": "gender"
+  },
+  "prison": {
+    "rank": 42281,
+    "word": "adorable"
+  },
+  "rain": {
+    "rank": 41722,
+    "word": "equity"
+  },
+  "rice": {
+    "rank": 42987,
+    "word": "disability"
+  },
+  "ring": {
+    "rank": 40284,
+    "word": "cognitive"
+  },
+  "river": {
+    "rank": 40976,
+    "word": "certified"
+  },
+  "school": {
+    "rank": 40002,
+    "word": "whoa"
+  },
+  "shadow": {
+    "rank": 41245,
+    "word": "nutrition"
+  },
+  "shoe": {
+    "rank": 40463,
+    "word": "calm"
+  },
+  "silver": {
+    "rank": 44159,
+    "word": "disorder"
+  },
+  "sing": {
+    "rank": 40218,
+    "word": "analysis"
+  },
+  "skin": {
+    "rank": 42655,
+    "word": "rally"
+  },
+  "sleep": {
+    "rank": 42081,
+    "word": "bronze"
+  },
+  "snake": {
+    "rank": 40439,
+    "word": "housing"
+  },
+  "snow": {
+    "rank": 42774,
+    "word": "gender"
+  },
+  "soup": {
+    "rank": 43710,
+    "word": "authority"
+  },
+  "stadium": {
+    "rank": 41202,
+    "word": "knife"
+  },
+  "star": {
+    "rank": 41868,
+    "word": "applicable"
+  },
+  "storm": {
+    "rank": 44699,
+    "word": "honestly"
+  },
+  "sun": {
+    "rank": 40179,
+    "word": "ashamed"
+  },
+  "swim": {
+    "rank": 40315,
+    "word": "prime"
+  },
+  "temple": {
+    "rank": 42077,
+    "word": "rude"
+  },
+  "thunder": {
+    "rank": 40522,
+    "word": "social"
+  },
+  "tiger": {
+    "rank": 40432,
+    "word": "filter"
+  },
+  "tooth": {
+    "rank": 41579,
+    "word": "president"
+  },
+  "volcano": {
+    "rank": 40931,
+    "word": "share"
+  },
+  "water": {
+    "rank": 43706,
+    "word": "roommate"
+  },
+  "whale": {
+    "rank": 40875,
+    "word": "mayor"
+  }
+}

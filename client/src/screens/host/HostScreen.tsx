@@ -4,6 +4,7 @@ import { useSocket, useGameState } from '../../socket';
 import HostLobby from './HostLobby';
 import HostGame from './HostGame';
 import HostRoundResults from './HostRoundResults';
+import HostHintReveal from './HostHintReveal';
 import HostGameOver from './HostGameOver';
 import PauseOverlay from '../../components/PauseOverlay';
 import RoomClosedModal from '../../components/RoomClosedModal';
@@ -92,6 +93,8 @@ export default function HostScreen() {
           case 'ROUND_ACCOLADES':
           case 'ROUND_SCOREBOARD':
             return <HostRoundResults state={gameState} game={game} />;
+          case 'ROUND_HINT_REVEAL':
+            return <HostHintReveal state={gameState} />;
           case 'GAME_OVER':
             return <HostGameOver state={gameState} game={game} />;
         }

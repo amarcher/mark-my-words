@@ -14,6 +14,7 @@ import {
   MAX_ROUNDS,
   MIN_PLAYERS,
   REVEAL_DISPLAY_TIME,
+  HINT_REVEAL_DISPLAY_TIME,
   ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
   AFK_CLOSE_TIMEOUT,
@@ -57,6 +58,7 @@ export class GameRoom {
   private hintVotes: Set<string> = new Set();
   private hintApproved: boolean = false; // host mode: host approved hint for this round
   private usedHintWords: Set<string> = new Set();
+  private lastHintResult: { word: string; rank: number; grantedBy: 'host' | 'vote' } | null = null;
 
   // Phase auto-advance timer
   private phaseTimer: ReturnType<typeof setInterval> | null = null;
@@ -287,6 +289,7 @@ export class GameRoom {
     this.usedHintWords.clear();
     this.hintVotes.clear();
     this.hintApproved = false;
+    this.lastHintResult = null;
 
     this.startNextRound();
     return { success: true };
@@ -420,7 +423,7 @@ export class GameRoom {
   }
 
   approveHint(): void {
-    if (this.phase !== 'ROUND_ACTIVE') return;
+    if (this.phase !== 'ROUND_ACTIVE' && this.phase !== 'ROUND_REVEALING') return;
     if (this.settings.hintMode !== 'host') return;
     if (!this.isHintAvailable()) return;
     this.hintApproved = true;
@@ -456,6 +459,8 @@ export class GameRoom {
       this.teamBest = result.rank;
     }
     this.usedHintWords.add(result.word);
+    const grantedBy = this.settings.hintMode === 'host' ? 'host' as const : 'vote' as const;
+    this.lastHintResult = { word: result.word, rank: result.rank, grantedBy };
     this.hintVotes.clear();
     this.touch();
     this.onHintRevealed(result.word, result.rank);
@@ -474,7 +479,7 @@ export class GameRoom {
   }
 
   voteForHint(voterId: string): void {
-    if (this.phase !== 'ROUND_ACTIVE') return;
+    if (this.phase !== 'ROUND_ACTIVE' && this.phase !== 'ROUND_REVEALING') return;
     if (this.settings.hintMode !== 'vote') return;
     if (!this.isHintAvailable()) return;
 
@@ -566,13 +571,8 @@ export class GameRoom {
     // Record for accolades
     this.accoladeEngine.recordRound(guesses);
 
-    // Grant hint at reveal time (not mid-round)
-    const shouldGiveHint =
-      (this.settings.hintMode === 'host' && this.hintApproved) ||
-      (this.settings.hintMode === 'vote' && this.hintVotePassed());
-    if (shouldGiveHint && this.isHintAvailable()) {
-      this.giveHint();
-    }
+    // Clear last hint result — hint decisions now happen during ROUND_REVEALING
+    this.lastHintResult = null;
 
     // Calculate reveal display time: 2s per guess, min 5s, max REVEAL_DISPLAY_TIME
     const revealTime = Math.max(5, Math.min(guesses.length * 2, REVEAL_DISPLAY_TIME));
@@ -611,6 +611,28 @@ export class GameRoom {
 
     switch (this.phase) {
       case 'ROUND_REVEALING': {
+        // Check if a hint should be granted (approved/voted during ROUND_ACTIVE or ROUND_REVEALING)
+        const shouldGiveHint =
+          (this.settings.hintMode === 'host' && this.hintApproved) ||
+          (this.settings.hintMode === 'vote' && this.hintVotePassed());
+        if (shouldGiveHint && this.isHintAvailable()) {
+          const hintResult = this.giveHint();
+          if (hintResult.success && this.lastHintResult) {
+            // Transition to ROUND_HINT_REVEAL
+            this.phase = 'ROUND_HINT_REVEAL';
+            this.broadcastState();
+            this.startPhaseTimer(HINT_REVEAL_DISPLAY_TIME);
+            break;
+          }
+        }
+        // No hint — skip directly to accolades
+        this.phase = 'ROUND_ACCOLADES';
+        this.cachedAccolades = this.generateAccolades();
+        this.broadcastState();
+        this.startPhaseTimer(ACCOLADES_DISPLAY_TIME);
+        break;
+      }
+      case 'ROUND_HINT_REVEAL': {
         this.phase = 'ROUND_ACCOLADES';
         this.cachedAccolades = this.generateAccolades();
         this.broadcastState();
@@ -659,7 +681,7 @@ export class GameRoom {
     }
 
     // Generate accolades if they haven't been generated yet this round
-    if (this.phase === 'ROUND_ACTIVE' || this.phase === 'ROUND_REVEALING') {
+    if (this.phase === 'ROUND_ACTIVE' || this.phase === 'ROUND_REVEALING' || this.phase === 'ROUND_HINT_REVEAL') {
       this.cachedAccolades = this.generateAccolades();
     }
 
@@ -681,6 +703,7 @@ export class GameRoom {
     this.usedHintWords.clear();
     this.hintVotes.clear();
     this.hintApproved = false;
+    this.lastHintResult = null;
     this.touch();
     this.broadcastState();
   }
@@ -730,12 +753,37 @@ export class GameRoom {
         return activeState;
       }
 
-      case 'ROUND_REVEALING':
-        return {
+      case 'ROUND_REVEALING': {
+        const revealState: GameState = {
           ...base,
           phase: 'ROUND_REVEALING',
           round: this.getRoundData(),
           revealedGuesses: this.getSortedGuesses(),
+          scoreboard: this.getScoreboard(),
+          phaseTimeRemaining: this.phaseTimeRemaining,
+          phaseTotalTime: this.phaseTotalTime,
+          hintAvailable: this.isHintAvailable(),
+          hintMode: this.settings.hintMode,
+          hintApproved: this.hintApproved,
+        };
+        if (this.settings.hintMode === 'vote') {
+          (revealState as import('@mmw/shared').RoundRevealingState).hintVote = {
+            votesNeeded: Math.floor(this.getVoterCount() / 2) + 1,
+            currentVotes: this.hintVotes.size,
+            voterIds: Array.from(this.hintVotes),
+          };
+        }
+        return revealState;
+      }
+
+      case 'ROUND_HINT_REVEAL':
+        return {
+          ...base,
+          phase: 'ROUND_HINT_REVEAL',
+          round: this.getRoundData(),
+          hintWord: this.lastHintResult?.word ?? '',
+          hintRank: this.lastHintResult?.rank ?? 0,
+          hintGrantedBy: this.lastHintResult?.grantedBy ?? 'host',
           scoreboard: this.getScoreboard(),
           phaseTimeRemaining: this.phaseTimeRemaining,
           phaseTotalTime: this.phaseTotalTime,

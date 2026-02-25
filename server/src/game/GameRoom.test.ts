@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { GameState } from '@mmw/shared';
 import {
   REVEAL_DISPLAY_TIME,
+  HINT_REVEAL_DISPLAY_TIME,
   ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
   PLAYER_COLORS,
@@ -1053,8 +1054,11 @@ describe('GameRoom', () => {
         // End the round
         room.submitGuess('player0', 'test');
         room.submitGuess('player1', 'test');
-        // Now hint should have been given during endRound
+        // Hint is now given when ROUND_REVEALING phase ends (in advancePhase)
+        expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
         expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
+        expect(room.getPhase()).toBe('ROUND_HINT_REVEAL');
       });
 
       it('hint is NOT given if not approved', () => {
@@ -1085,7 +1089,8 @@ describe('GameRoom', () => {
         room.approveHint();
         room.submitGuess('player0', 'test');
         room.submitGuess('player1', 'test');
-        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000); // → ROUND_HINT_REVEAL
+        vi.advanceTimersByTime(HINT_REVEAL_DISPLAY_TIME * 1000); // → ROUND_ACCOLADES
         vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
         vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
         expect(room.getPhase()).toBe('ROUND_ACTIVE');
@@ -1123,6 +1128,9 @@ describe('GameRoom', () => {
         // End the round to trigger reveal
         room.submitGuess('player0', 'test');
         room.submitGuess('player1', 'test');
+        // Hint is given when ROUND_REVEALING phase ends
+        expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
         expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
       });
 
@@ -1167,10 +1175,12 @@ describe('GameRoom', () => {
         room.voteForHint('player1');
         room.submitGuess('player0', 'test');
         room.submitGuess('player1', 'test');
+        // Hint is given when ROUND_REVEALING phase ends
+        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
         expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
 
-        // Advance to next round
-        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        // Advance through hint reveal and to next round
+        vi.advanceTimersByTime(HINT_REVEAL_DISPLAY_TIME * 1000);
         vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
         vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
         expect(room.getPhase()).toBe('ROUND_ACTIVE');

@@ -2,6 +2,7 @@ export type GamePhase =
   | 'LOBBY'
   | 'ROUND_ACTIVE'
   | 'ROUND_REVEALING'
+  | 'ROUND_HINT_REVEAL'
   | 'ROUND_ACCOLADES'
   | 'ROUND_SCOREBOARD'
   | 'GAME_OVER';
@@ -109,6 +110,21 @@ export interface RoundRevealingState extends BaseState {
   scoreboard: ScoreEntry[];
   phaseTimeRemaining: number;
   phaseTotalTime: number;
+  hintAvailable: boolean;
+  hintMode: HintMode;
+  hintApproved?: boolean;
+  hintVote?: HintVoteState;
+}
+
+export interface RoundHintRevealState extends BaseState {
+  phase: 'ROUND_HINT_REVEAL';
+  round: RoundData;
+  hintWord: string;
+  hintRank: number;
+  hintGrantedBy: 'host' | 'vote';
+  scoreboard: ScoreEntry[];
+  phaseTimeRemaining: number;
+  phaseTotalTime: number;
 }
 
 export interface RoundAccoladesState extends BaseState {
@@ -140,6 +156,7 @@ export type GameState =
   | LobbyState
   | RoundActiveState
   | RoundRevealingState
+  | RoundHintRevealState
   | RoundAccoladesState
   | RoundScoreboardState
   | GameOverState;

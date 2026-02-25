@@ -4,6 +4,7 @@ import JoinRoom from './JoinRoom';
 import PlayerLobby from './PlayerLobby';
 import PlayerGame from './PlayerGame';
 import PlayerResults from './PlayerResults';
+import PlayerHintReveal from './PlayerHintReveal';
 import RoomClosedModal from '../../components/RoomClosedModal';
 
 export default function PlayerScreen() {
@@ -50,6 +51,8 @@ export default function PlayerScreen() {
     case 'ROUND_ACCOLADES':
     case 'ROUND_SCOREBOARD':
       return <PlayerResults state={gameState} game={game} />;
+    case 'ROUND_HINT_REVEAL':
+      return <PlayerHintReveal state={gameState} />;
     case 'GAME_OVER':
       return <PlayerResults state={gameState} game={game} />;
   }

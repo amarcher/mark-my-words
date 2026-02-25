@@ -31,7 +31,8 @@ export function calculateAdvancementScore(teamBest: number, guessRank: number): 
 
 // Phase auto-advance display durations (seconds)
 export const REVEAL_DISPLAY_TIME = 8;
-export const ACCOLADES_DISPLAY_TIME = 8;
+export const HINT_REVEAL_DISPLAY_TIME = 4;
+export const ACCOLADES_DISPLAY_TIME = 4;
 export const SCOREBOARD_DISPLAY_TIME = 6;
 
 // AFK detection

@@ -22,6 +22,7 @@ interface Props {
     closeRoom: () => void;
     leaveRoom: () => void;
     notifications: string[];
+    requestHint: () => void;
   };
 }
 
@@ -138,6 +139,40 @@ export default function PlayerResults({ state, game }: Props) {
         {!hasMyGuess && (
           <p className="text-white/30 text-sm mt-4">You didn't submit a guess this round</p>
         )}
+
+        {/* Hint request buttons during reveal phase */}
+        {state.hintMode === 'host' && state.hintAvailable && isLeader && (
+          <button
+            onClick={game.requestHint}
+            disabled={state.hintApproved}
+            className={`mt-4 text-xs font-semibold rounded-lg px-4 py-1.5 transition-colors border ${
+              state.hintApproved
+                ? 'text-amber-300/50 border-amber-400/15 bg-amber-500/5 cursor-not-allowed'
+                : 'text-amber-300 border-amber-400/30 hover:bg-amber-400/10 bg-gradient-to-r from-amber-500/5 to-yellow-500/5'
+            }`}
+          >
+            {state.hintApproved ? 'Hint Queued' : 'Grant Hint'}
+          </button>
+        )}
+
+        {state.hintMode === 'vote' && state.hintAvailable && state.hintVote && (() => {
+          const hasVoted = state.hintVote!.voterIds.includes(socket.id || '');
+          return (
+            <button
+              onClick={game.requestHint}
+              disabled={hasVoted}
+              className={`mt-4 text-xs font-semibold rounded-lg px-4 py-1.5 transition-colors border ${
+                hasVoted
+                  ? 'text-amber-300/50 border-amber-400/15 bg-amber-500/5 cursor-not-allowed'
+                  : 'text-amber-300 border-amber-400/30 hover:bg-amber-400/10 bg-gradient-to-r from-amber-500/5 to-yellow-500/5'
+              }`}
+            >
+              {hasVoted
+                ? `Voted (${state.hintVote!.currentVotes}/${state.hintVote!.votesNeeded})`
+                : `Vote for Hint (${state.hintVote!.currentVotes}/${state.hintVote!.votesNeeded})`}
+            </button>
+          );
+        })()}
       </div>
     );
   }

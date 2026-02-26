@@ -3,7 +3,6 @@ import type { GameState } from '@mmw/shared';
 import {
   REVEAL_DISPLAY_TIME,
   HINT_REVEAL_DISPLAY_TIME,
-  ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
   PLAYER_COLORS,
   INITIAL_TEAM_BEST,
@@ -92,6 +91,20 @@ describe('GameRoom', () => {
     const ids = addPlayers(2);
     room.startGame();
     return ids;
+  }
+
+  // Computed reveal time for given guess count (matches server formula)
+  function revealTime(guessCount: number): number {
+    return Math.max(8, Math.min(guessCount * 2 + 4, REVEAL_DISPLAY_TIME));
+  }
+
+  // Advance through all result phases to reach the next round or GAME_OVER
+  function advancePastResults(guessCount: number, hasHint = false) {
+    vi.advanceTimersByTime(revealTime(guessCount) * 1000);
+    if (hasHint) {
+      vi.advanceTimersByTime(HINT_REVEAL_DISPLAY_TIME * 1000);
+    }
+    vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
   }
 
   describe('Player management', () => {
@@ -451,30 +464,16 @@ describe('GameRoom', () => {
   });
 
   describe('Phase advancement', () => {
-    function advancePastReveal() {
-      // Advance past ROUND_REVEALING phase timer
-      const revealTime = Math.max(5, Math.min(0 * 2, REVEAL_DISPLAY_TIME));
-      // With 0 guesses in endRound scenario, min is 5; but if round ended by timer, guesses may be 0 or more.
-      // Just advance enough time for worst case
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+    function advancePastReveal(guessCount = 2) {
+      vi.advanceTimersByTime(revealTime(guessCount) * 1000);
     }
 
-    it('REVEALING → ACCOLADES', () => {
+    it('REVEALING → SCOREBOARD', () => {
       const ids = startGame();
       room.submitGuess(ids[0], 'test');
       room.submitGuess(ids[1], 'test');
       expect(room.getPhase()).toBe('ROUND_REVEALING');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      expect(room.getPhase()).toBe('ROUND_ACCOLADES');
-    });
-
-    it('ACCOLADES → SCOREBOARD', () => {
-      const ids = startGame();
-      room.submitGuess(ids[0], 'test');
-      room.submitGuess(ids[1], 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      expect(room.getPhase()).toBe('ROUND_ACCOLADES');
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(revealTime(2) * 1000);
       expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
     });
 
@@ -483,12 +482,9 @@ describe('GameRoom', () => {
       room.updateSettings({ maxRounds: 3 });
       room.startGame();
       const ids = ['player0', 'player1'];
-      // Complete round 1
       room.submitGuess(ids[0], 'test');
       room.submitGuess(ids[1], 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       expect(room.getPhase()).toBe('ROUND_ACTIVE');
     });
 
@@ -499,9 +495,7 @@ describe('GameRoom', () => {
       const ids = ['player0', 'player1'];
       room.submitGuess(ids[0], 'test');
       room.submitGuess(ids[1], 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       expect(room.getPhase()).toBe('GAME_OVER');
     });
 
@@ -513,9 +507,7 @@ describe('GameRoom', () => {
       // rank=1 guess auto-ends round
       room.submitGuess('player0', 'apple');
       expect(room.getPhase()).toBe('ROUND_REVEALING');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(1);
       expect(room.getPhase()).toBe('GAME_OVER');
     });
 
@@ -525,9 +517,7 @@ describe('GameRoom', () => {
       room.startGame();
       room.submitGuess('player0', 'test');
       room.submitGuess('player1', 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       expect(room.getPhase()).toBe('GAME_OVER');
       // Advance a lot more time — should stay at GAME_OVER
       vi.advanceTimersByTime(60_000);
@@ -540,7 +530,7 @@ describe('GameRoom', () => {
       room.submitGuess(ids[1], 'test');
       expect(room.getPhase()).toBe('ROUND_REVEALING');
       room.pause();
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000 + 5000);
+      vi.advanceTimersByTime(revealTime(2) * 1000 + 5000);
       // Should still be in REVEALING because paused
       expect(room.getPhase()).toBe('ROUND_REVEALING');
     });
@@ -552,7 +542,7 @@ describe('GameRoom', () => {
       room.pause();
       vi.advanceTimersByTime(3000);
       room.resume();
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(revealTime(2) * 1000);
       // Should have advanced past REVEALING
       expect(room.getPhase()).not.toBe('ROUND_REVEALING');
     });
@@ -615,9 +605,7 @@ describe('GameRoom', () => {
       room.startGame();
       room.submitGuess('player0', 'test');
       room.submitGuess('player1', 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       expect(room.getPhase()).toBe('GAME_OVER');
     }
 
@@ -667,9 +655,7 @@ describe('GameRoom', () => {
       room.startGame();
       room.submitGuess('player0', 'test');
       room.submitGuess('player1', 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       expect(room.getPhase()).toBe('GAME_OVER');
       callbacks.onStateChange.mockClear();
       room.endGame();
@@ -715,22 +701,11 @@ describe('GameRoom', () => {
       expect(room.getPhase()).toBe('GAME_OVER');
     });
 
-    it('works from ROUND_ACCOLADES phase', () => {
-      const ids = startGame();
-      room.submitGuess(ids[0], 'test');
-      room.submitGuess(ids[1], 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      expect(room.getPhase()).toBe('ROUND_ACCOLADES');
-      room.endGame();
-      expect(room.getPhase()).toBe('GAME_OVER');
-    });
-
     it('works from ROUND_SCOREBOARD phase', () => {
       const ids = startGame();
       room.submitGuess(ids[0], 'test');
       room.submitGuess(ids[1], 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+      vi.advanceTimersByTime(revealTime(2) * 1000);
       expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
       room.endGame();
       expect(room.getPhase()).toBe('GAME_OVER');
@@ -809,9 +784,7 @@ describe('GameRoom', () => {
       room.startGame();
       room.submitGuess('player0', 'test');
       room.submitGuess('player1', 'test');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       const state = room.getState();
       if (state.phase === 'GAME_OVER') {
         expect(state.secretWord).toBe('apple');
@@ -884,9 +857,7 @@ describe('GameRoom', () => {
       room.submitGuess('player0', 'hello');
       room.submitGuess('player1', 'world');
       // Advance through result phases to round 2
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       expect(room.getPhase()).toBe('ROUND_ACTIVE');
 
       // Round 2: try to reuse "hello" — should be rejected
@@ -903,9 +874,7 @@ describe('GameRoom', () => {
       // Round 1
       room.submitGuess('player0', 'hello');
       room.submitGuess('player1', 'world');
-      vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-      vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+      advancePastResults(2);
       expect(room.getPhase()).toBe('ROUND_ACTIVE');
 
       // Round 2: reuse "hello" — should be allowed
@@ -1056,7 +1025,7 @@ describe('GameRoom', () => {
         room.submitGuess('player1', 'test');
         // Hint is now given when ROUND_REVEALING phase ends (in advancePhase)
         expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
-        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(revealTime(2) * 1000);
         expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
         expect(room.getPhase()).toBe('ROUND_HINT_REVEAL');
       });
@@ -1089,9 +1058,8 @@ describe('GameRoom', () => {
         room.approveHint();
         room.submitGuess('player0', 'test');
         room.submitGuess('player1', 'test');
-        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000); // → ROUND_HINT_REVEAL
-        vi.advanceTimersByTime(HINT_REVEAL_DISPLAY_TIME * 1000); // → ROUND_ACCOLADES
-        vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(revealTime(2) * 1000); // → ROUND_HINT_REVEAL
+        vi.advanceTimersByTime(HINT_REVEAL_DISPLAY_TIME * 1000); // → ROUND_SCOREBOARD
         vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
         expect(room.getPhase()).toBe('ROUND_ACTIVE');
         expect(room.isHintApproved()).toBe(false); // reset for new round
@@ -1130,7 +1098,7 @@ describe('GameRoom', () => {
         room.submitGuess('player1', 'test');
         // Hint is given when ROUND_REVEALING phase ends
         expect(callbacks.onHintRevealed).not.toHaveBeenCalled();
-        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(revealTime(2) * 1000);
         expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
       });
 
@@ -1176,12 +1144,11 @@ describe('GameRoom', () => {
         room.submitGuess('player0', 'test');
         room.submitGuess('player1', 'test');
         // Hint is given when ROUND_REVEALING phase ends
-        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
+        vi.advanceTimersByTime(revealTime(2) * 1000);
         expect(callbacks.onHintRevealed).toHaveBeenCalledOnce();
 
         // Advance through hint reveal and to next round
         vi.advanceTimersByTime(HINT_REVEAL_DISPLAY_TIME * 1000);
-        vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
         vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
         expect(room.getPhase()).toBe('ROUND_ACTIVE');
 
@@ -1246,9 +1213,7 @@ describe('GameRoom', () => {
         room.giveHint(); // uses 'hintword', adds to usedHintWords
         room.submitGuess('player0', 'test');
         room.submitGuess('player1', 'test');
-        vi.advanceTimersByTime(REVEAL_DISPLAY_TIME * 1000);
-        vi.advanceTimersByTime(ACCOLADES_DISPLAY_TIME * 1000);
-        vi.advanceTimersByTime(SCOREBOARD_DISPLAY_TIME * 1000);
+        advancePastResults(2);
         expect(room.getPhase()).toBe('GAME_OVER');
 
         mockPickRandomSecretWord.mockReturnValue('banana');

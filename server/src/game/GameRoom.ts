@@ -15,7 +15,6 @@ import {
   MIN_PLAYERS,
   REVEAL_DISPLAY_TIME,
   HINT_REVEAL_DISPLAY_TIME,
-  ACCOLADES_DISPLAY_TIME,
   SCOREBOARD_DISPLAY_TIME,
   AFK_CLOSE_TIMEOUT,
   PLAYER_COLORS,
@@ -568,14 +567,15 @@ export class GameRoom {
       if (g.rank < this.teamBest) this.teamBest = g.rank;
     }
 
-    // Record for accolades
+    // Record for accolades and generate immediately (shown during reveal)
     this.accoladeEngine.recordRound(guesses);
+    this.cachedAccolades = this.generateAccolades();
 
     // Clear last hint result — hint decisions now happen during ROUND_REVEALING
     this.lastHintResult = null;
 
-    // Calculate reveal display time: 2s per guess, min 5s, max REVEAL_DISPLAY_TIME
-    const revealTime = Math.max(5, Math.min(guesses.length * 2, REVEAL_DISPLAY_TIME));
+    // Calculate reveal display time: 2s per guess, min 8s, max REVEAL_DISPLAY_TIME
+    const revealTime = Math.max(8, Math.min(guesses.length * 2 + 4, REVEAL_DISPLAY_TIME));
 
     this.broadcastState();
     this.startPhaseTimer(revealTime);
@@ -605,6 +605,17 @@ export class GameRoom {
     }
   }
 
+  private transitionToScoreboard(): void {
+    this.phase = 'ROUND_SCOREBOARD';
+    // Save positions before update (for next round's movement indicators)
+    const scoreboard = this.getScoreboard();
+    for (const entry of scoreboard) {
+      this.previousPositions.set(entry.playerId, entry.currentPosition);
+    }
+    this.broadcastState();
+    this.startPhaseTimer(SCOREBOARD_DISPLAY_TIME);
+  }
+
   // Auto-advance through result phases
   private advancePhase(): void {
     this.touch();
@@ -625,29 +636,12 @@ export class GameRoom {
             break;
           }
         }
-        // No hint — skip directly to accolades
-        this.phase = 'ROUND_ACCOLADES';
-        this.cachedAccolades = this.generateAccolades();
-        this.broadcastState();
-        this.startPhaseTimer(ACCOLADES_DISPLAY_TIME);
+        // No hint — go directly to scoreboard
+        this.transitionToScoreboard();
         break;
       }
       case 'ROUND_HINT_REVEAL': {
-        this.phase = 'ROUND_ACCOLADES';
-        this.cachedAccolades = this.generateAccolades();
-        this.broadcastState();
-        this.startPhaseTimer(ACCOLADES_DISPLAY_TIME);
-        break;
-      }
-      case 'ROUND_ACCOLADES': {
-        this.phase = 'ROUND_SCOREBOARD';
-        // Save positions before update
-        const scoreboard = this.getScoreboard();
-        for (const entry of scoreboard) {
-          this.previousPositions.set(entry.playerId, entry.currentPosition);
-        }
-        this.broadcastState();
-        this.startPhaseTimer(SCOREBOARD_DISPLAY_TIME);
+        this.transitionToScoreboard();
         break;
       }
       case 'ROUND_SCOREBOARD': {
@@ -681,7 +675,7 @@ export class GameRoom {
     }
 
     // Generate accolades if they haven't been generated yet this round
-    if (this.phase === 'ROUND_ACTIVE' || this.phase === 'ROUND_REVEALING' || this.phase === 'ROUND_HINT_REVEAL') {
+    if (this.phase === 'ROUND_ACTIVE') {
       this.cachedAccolades = this.generateAccolades();
     }
 
@@ -759,6 +753,7 @@ export class GameRoom {
           phase: 'ROUND_REVEALING',
           round: this.getRoundData(),
           revealedGuesses: this.getSortedGuesses(),
+          accolades: this.getAccolades(),
           scoreboard: this.getScoreboard(),
           phaseTimeRemaining: this.phaseTimeRemaining,
           phaseTotalTime: this.phaseTotalTime,
@@ -784,17 +779,6 @@ export class GameRoom {
           hintWord: this.lastHintResult?.word ?? '',
           hintRank: this.lastHintResult?.rank ?? 0,
           hintGrantedBy: this.lastHintResult?.grantedBy ?? 'host',
-          scoreboard: this.getScoreboard(),
-          phaseTimeRemaining: this.phaseTimeRemaining,
-          phaseTotalTime: this.phaseTotalTime,
-        };
-
-      case 'ROUND_ACCOLADES':
-        return {
-          ...base,
-          phase: 'ROUND_ACCOLADES',
-          round: this.getRoundData(),
-          accolades: this.getAccolades(),
           scoreboard: this.getScoreboard(),
           phaseTimeRemaining: this.phaseTimeRemaining,
           phaseTotalTime: this.phaseTotalTime,

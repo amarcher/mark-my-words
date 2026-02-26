@@ -3,7 +3,6 @@ export type GamePhase =
   | 'ROUND_ACTIVE'
   | 'ROUND_REVEALING'
   | 'ROUND_HINT_REVEAL'
-  | 'ROUND_ACCOLADES'
   | 'ROUND_SCOREBOARD'
   | 'GAME_OVER';
 
@@ -107,6 +106,7 @@ export interface RoundRevealingState extends BaseState {
   phase: 'ROUND_REVEALING';
   round: RoundData;
   revealedGuesses: GuessResult[];
+  accolades: Accolade[];
   scoreboard: ScoreEntry[];
   phaseTimeRemaining: number;
   phaseTotalTime: number;
@@ -122,15 +122,6 @@ export interface RoundHintRevealState extends BaseState {
   hintWord: string;
   hintRank: number;
   hintGrantedBy: 'host' | 'vote';
-  scoreboard: ScoreEntry[];
-  phaseTimeRemaining: number;
-  phaseTotalTime: number;
-}
-
-export interface RoundAccoladesState extends BaseState {
-  phase: 'ROUND_ACCOLADES';
-  round: RoundData;
-  accolades: Accolade[];
   scoreboard: ScoreEntry[];
   phaseTimeRemaining: number;
   phaseTotalTime: number;
@@ -157,6 +148,5 @@ export type GameState =
   | RoundActiveState
   | RoundRevealingState
   | RoundHintRevealState
-  | RoundAccoladesState
   | RoundScoreboardState
   | GameOverState;

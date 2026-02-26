@@ -4,7 +4,6 @@ import { useSocket, useGameState } from '../../socket';
 import HostLobby from './HostLobby';
 import HostGame from './HostGame';
 import HostRoundResults from './HostRoundResults';
-import HostHintReveal from './HostHintReveal';
 import HostGameOver from './HostGameOver';
 import PauseOverlay from '../../components/PauseOverlay';
 import RoomClosedModal from '../../components/RoomClosedModal';
@@ -90,11 +89,9 @@ export default function HostScreen() {
           case 'ROUND_ACTIVE':
             return <HostGame state={gameState} game={game} />;
           case 'ROUND_REVEALING':
-          case 'ROUND_ACCOLADES':
+          case 'ROUND_HINT_REVEAL':
           case 'ROUND_SCOREBOARD':
             return <HostRoundResults state={gameState} game={game} />;
-          case 'ROUND_HINT_REVEAL':
-            return <HostHintReveal state={gameState} />;
           case 'GAME_OVER':
             return <HostGameOver state={gameState} game={game} />;
         }
@@ -102,7 +99,7 @@ export default function HostScreen() {
 
       {/* Small QR code for late joiners — visible in top bar during all non-lobby phases */}
       {gameState.phase !== 'LOBBY' && (
-        <div className="fixed top-3 right-3 bg-white/10 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
+        <div className="fixed top-3 left-3 bg-white/10 backdrop-blur-sm rounded-lg p-2 flex items-center gap-2">
           <QRCodeSVG
             value={`${window.location.origin}/play/${gameState.roomCode}`}
             size={48}

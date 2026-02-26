@@ -34,12 +34,11 @@ export default function Leaderboard({ scoreboard, showRoundScore = true, compact
         return (
           <div
             key={entry.playerId}
-            className={`flex items-center gap-3 ${compact ? 'p-2' : 'p-3'} rounded-xl border animate-slide-up ${
+            className={`flex items-center gap-3 ${compact ? 'p-2' : 'p-3'} rounded-xl border ${
               hasSubmitted
                 ? 'bg-rank-green/10 border-rank-green/20'
                 : 'bg-bg-card/50 border-white/5'
             }`}
-            style={{ animationDelay: `${i * 100}ms` }}
           >
             {/* Position */}
             <div className={`w-8 text-center font-bold ${POSITION_COLORS[entry.currentPosition] || 'text-white/50'}`}>

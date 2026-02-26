@@ -33,7 +33,7 @@ Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 
 **server** (`@mmw/server`) — Express + Socket.io (ESM, `"type": "module"`). Game logic is a server-authoritative state machine:
 - `RoomManager` — room lifecycle, player↔room mapping, host↔room mapping, auto-cleanup of inactive rooms
-- `GameRoom` — core phase machine: LOBBY → ROUND_ACTIVE → ROUND_REVEALING → ROUND_ACCOLADES → ROUND_SCOREBOARD → GAME_OVER. Manages timers, scoring, pause/resume. Result phases auto-advance on server timers; GAME_OVER stays until leader acts
+- `GameRoom` — core phase machine: LOBBY → ROUND_ACTIVE → ROUND_REVEALING → (optional ROUND_HINT_REVEAL) → ROUND_SCOREBOARD → GAME_OVER. Manages timers, scoring, pause/resume. Result phases auto-advance on server timers; GAME_OVER stays until leader acts. Accolades are computed during ROUND_REVEALING (no separate phase). Client renders a persistent "reveal shell" layout across REVEALING/HINT_REVEAL/SCOREBOARD to avoid screen-swapping.
 - `handlers.ts` — socket event registration, delegates to RoomManager
 - `WordRanker` — loads word rankings from `server/data/rankings/{word}.json` files. Valid but unranked words get deterministic hash-based ranks (5000–50000)
 - `AccoladeEngine` — generates 2-3 fun accolades per round from guess data

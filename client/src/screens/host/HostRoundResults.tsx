@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type {
   RoundRevealingState,
   RoundHintRevealState,
@@ -11,6 +11,11 @@ import ProximityBar from '../../components/ProximityBar';
 import AccoladeCard from '../../components/AccoladeCard';
 import Leaderboard from '../../components/Leaderboard';
 import GuessHistory from '../../components/GuessHistory';
+import PlayerRevealStep from '../../components/PlayerRevealStep';
+import { useRevealSequence } from '../../hooks/useRevealSequence';
+import { audioManager } from '../../audio/AudioManager';
+import { guessRevealAnnouncement, accoladeAnnouncement } from '../../audio/announcements';
+import { socket } from '../../socket';
 
 type ResultState = RoundRevealingState | RoundHintRevealState | RoundScoreboardState;
 
@@ -20,6 +25,8 @@ interface Props {
     notifications: string[];
   };
 }
+
+const ACCOLADE_DISPLAY_MS = 3000;
 
 function PhaseProgressBar({ timeRemaining, totalTime, paused }: { timeRemaining: number; totalTime: number; paused: boolean }) {
   const [initialElapsed] = useState(() => totalTime - timeRemaining);
@@ -44,22 +51,136 @@ function PhaseProgressBar({ timeRemaining, totalTime, paused }: { timeRemaining:
 }
 
 export default function HostRoundResults({ state }: Props) {
-  const playerColorMap = new Map(state.players.map(p => [p.id, p.color]));
+  const isRevealing = state.phase === 'ROUND_REVEALING';
+  const isScoreboard = state.phase === 'ROUND_SCOREBOARD';
+  const isHintReveal = state.phase === 'ROUND_HINT_REVEAL';
 
-  // Persist data from ROUND_REVEALING across subsequent phases
+  const reveal = useRevealSequence(
+    isRevealing,
+    isRevealing ? state.revealedGuesses : undefined,
+    isRevealing ? state.accolades : undefined,
+  );
+
+  // Enqueue TTS for each player as their step begins
+  const lastAnnouncedStep = useRef(-1);
+  useEffect(() => {
+    if (!isRevealing) {
+      lastAnnouncedStep.current = -1;
+      return;
+    }
+    if (reveal.step >= 0 && reveal.step < reveal.shuffledGuesses.length && reveal.step !== lastAnnouncedStep.current) {
+      lastAnnouncedStep.current = reveal.step;
+      const guess = reveal.shuffledGuesses[reveal.step];
+      audioManager.enqueue(guessRevealAnnouncement(guess.playerName, guess.word, guess.rank));
+    }
+  }, [isRevealing, reveal.step, reveal.shuffledGuesses]);
+
+  // Enqueue one random accolade TTS when entering accolades step
+  const announcedAccolades = useRef(false);
+  useEffect(() => {
+    if (reveal.showingAccolades && !announcedAccolades.current && reveal.accolades.length > 0) {
+      announcedAccolades.current = true;
+      const pick = reveal.accolades[Math.floor(Math.random() * reveal.accolades.length)];
+      audioManager.enqueue(accoladeAnnouncement(pick));
+    }
+    if (!isRevealing) {
+      announcedAccolades.current = false;
+    }
+  }, [reveal.showingAccolades, reveal.accolades, isRevealing]);
+
+  // Auto-advance after accolades display (or skip if no accolades)
+  const accoladeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (reveal.showingAccolades) {
+      const delay = reveal.accolades.length > 0 ? ACCOLADE_DISPLAY_MS : 0;
+      accoladeTimerRef.current = setTimeout(() => {
+        reveal.advance(); // sets done = true
+      }, delay);
+    }
+    return () => {
+      if (accoladeTimerRef.current) clearTimeout(accoladeTimerRef.current);
+    };
+  }, [reveal.showingAccolades, reveal.advance, reveal.accolades.length]);
+
+  // Release phase hold when entire reveal sequence is done
+  const releasedRef = useRef(false);
+  useEffect(() => {
+    if (reveal.done && isRevealing && !releasedRef.current) {
+      releasedRef.current = true;
+      socket.emit('phase:release');
+    }
+    if (!isRevealing) {
+      releasedRef.current = false;
+    }
+  }, [reveal.done, isRevealing]);
+
+  // Persist data from ROUND_REVEALING for use in subsequent phases
   const revealDataRef = useRef<{ guesses: GuessResult[]; accolades: Accolade[] } | null>(null);
-  if (state.phase === 'ROUND_REVEALING') {
+  if (isRevealing && reveal.done) {
     revealDataRef.current = {
-      guesses: [...state.revealedGuesses].sort((a, b) => a.rank - b.rank),
-      accolades: state.accolades,
+      guesses: [...reveal.shuffledGuesses].sort((a, b) => a.rank - b.rank),
+      accolades: reveal.accolades,
+    };
+  } else if (isRevealing && reveal.shuffledGuesses.length > 0) {
+    // Keep updating so hint/scoreboard phases can access it
+    revealDataRef.current = {
+      guesses: [...reveal.shuffledGuesses].sort((a, b) => a.rank - b.rank),
+      accolades: reveal.accolades,
     };
   }
   const revealData = revealDataRef.current;
 
-  // Determine what's active for the left column
-  const isScoreboard = state.phase === 'ROUND_SCOREBOARD';
-  const isHintReveal = state.phase === 'ROUND_HINT_REVEAL';
+  // During ROUND_REVEALING with active per-player sequence
+  if (isRevealing && !reveal.done && !reveal.showingAccolades && reveal.currentGuess) {
+    return (
+      <>
+        <div className="min-h-screen flex flex-col items-center justify-center p-8 pb-16">
+          <PlayerRevealStep
+            key={reveal.step}
+            guess={reveal.currentGuess}
+            previousGuesses={reveal.previousGuesses}
+            players={state.players}
+            onComplete={reveal.advance}
+          />
+        </div>
+        <PhaseProgressBar
+          key="revealing"
+          timeRemaining={state.phaseTimeRemaining}
+          totalTime={state.phaseTotalTime}
+          paused={state.paused}
+        />
+      </>
+    );
+  }
 
+  // Accolades step (still during ROUND_REVEALING)
+  if (isRevealing && reveal.showingAccolades && reveal.accolades.length > 0) {
+    return (
+      <>
+        <div className="min-h-screen flex flex-col items-center justify-center p-8 pb-16">
+          <h2 className="text-3xl font-bold text-white/60 mb-8">Awards</h2>
+          <div className="flex flex-wrap justify-center gap-6">
+            {reveal.accolades.map((accolade, i) => (
+              <AccoladeCard
+                key={accolade.type + accolade.playerId}
+                accolade={accolade}
+                index={i}
+                players={state.players}
+              />
+            ))}
+          </div>
+        </div>
+        <PhaseProgressBar
+          key="revealing"
+          timeRemaining={state.phaseTimeRemaining}
+          totalTime={state.phaseTotalTime}
+          paused={state.paused}
+        />
+      </>
+    );
+  }
+
+  // ROUND_HINT_REVEAL, ROUND_SCOREBOARD, or ROUND_REVEALING with no guesses / done with accolades
   return (
     <>
       <div className="min-h-screen flex flex-col items-center p-8 pb-16">
@@ -82,7 +203,7 @@ export default function HostRoundResults({ state }: Props) {
         <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1">
           {/* Left column: primary content */}
           <div className="space-y-4">
-            {/* Hint card - appears during HINT_REVEAL, stays visible after */}
+            {/* Hint card - appears during HINT_REVEAL */}
             {isHintReveal && (
               <div className="animate-scale-in mb-2">
                 <div className="relative">
@@ -114,21 +235,18 @@ export default function HostRoundResults({ state }: Props) {
               </div>
             ) : revealData && (
               <>
-                {/* Round guesses - animate in once during REVEALING, persist after */}
+                {/* Round guesses summary (shown after all reveals are done, during hint reveal) */}
                 <div className="space-y-3">
                   {revealData.guesses.map((guess, i) => (
                     <div
                       key={guess.playerId}
-                      className={`flex items-center gap-4 p-4 rounded-xl bg-bg-card/50 border border-white/5 ${
-                        !isHintReveal ? 'animate-slide-up' : ''
-                      }`}
-                      style={!isHintReveal ? { animationDelay: `${i * 100}ms` } : undefined}
+                      className="flex items-center gap-4 p-4 rounded-xl bg-bg-card/50 border border-white/5"
                     >
                       <RankBadge rank={guess.rank} size="md" />
                       <div className="flex-1">
                         <p
                           className="font-semibold text-lg"
-                          style={{ color: playerColorMap.get(guess.playerId) || undefined }}
+                          style={{ color: state.players.find(p => p.id === guess.playerId)?.color || undefined }}
                         >
                           {guess.playerName}
                         </p>
@@ -142,7 +260,7 @@ export default function HostRoundResults({ state }: Props) {
                   ))}
                 </div>
 
-                {/* Accolades - fade in below guesses after a delay */}
+                {/* Accolades */}
                 {revealData.accolades.length > 0 && (
                   <div className="flex flex-wrap justify-center gap-6 pt-2">
                     {revealData.accolades.map((accolade, i) => (

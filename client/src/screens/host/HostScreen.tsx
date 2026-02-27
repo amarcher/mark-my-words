@@ -7,6 +7,8 @@ import HostRoundResults from './HostRoundResults';
 import HostGameOver from './HostGameOver';
 import PauseOverlay from '../../components/PauseOverlay';
 import RoomClosedModal from '../../components/RoomClosedModal';
+import { useHostAudio } from '../../audio/useHostAudio';
+import MuteToggle from '../../audio/MuteToggle';
 
 export default function HostScreen() {
   const { connected, reconnecting } = useSocket();
@@ -14,7 +16,10 @@ export default function HostScreen() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
+  const { muted, toggleMute, unlockAudio } = useHostAudio(game.gameState);
+
   const handleCreate = async () => {
+    unlockAudio();
     setCreating(true);
     setError('');
     const result = await game.createRoom();
@@ -79,13 +84,21 @@ export default function HostScreen() {
           onResume={game.resume}
           onLeave={game.closeRoom}
           onEndGame={game.endGame}
+          extraControls={<MuteToggle muted={muted} onToggle={toggleMute} />}
         />
       )}
 
       {(() => {
         switch (gameState.phase) {
           case 'LOBBY':
-            return <HostLobby state={gameState} game={game} />;
+            return (
+              <>
+                <div className="fixed top-4 right-4 z-50">
+                  <MuteToggle muted={muted} onToggle={toggleMute} />
+                </div>
+                <HostLobby state={gameState} game={game} />
+              </>
+            );
           case 'ROUND_ACTIVE':
             return <HostGame state={gameState} game={game} />;
           case 'ROUND_REVEALING':

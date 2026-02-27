@@ -250,6 +250,18 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
       room.resume();
     });
 
+    socket.on('phase:hold', () => {
+      const room = roomManager.getRoomForHost(socket.id);
+      if (!room) return;
+      room.holdPhase();
+    });
+
+    socket.on('phase:release', () => {
+      const room = roomManager.getRoomForHost(socket.id);
+      if (!room) return;
+      room.releasePhase();
+    });
+
     socket.on('disconnect', () => {
       console.log(`Client disconnected: ${socket.id}`);
       const roomCode = socket.data.roomCode;

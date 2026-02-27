@@ -64,6 +64,11 @@ export class GameRoom {
   private phaseTimeRemaining: number = 0;
   private phaseTotalTime: number = 0;
 
+  // Host hold (TTS still speaking)
+  private hostHold: boolean = false;
+  private hostHoldTimeout: ReturnType<typeof setTimeout> | null = null;
+  private static readonly MAX_HOLD_MS = 90_000;
+
   // AFK detection
   private afkTimer: ReturnType<typeof setInterval> | null = null;
   private afkCountdown: number | null = null;
@@ -361,7 +366,7 @@ export class GameRoom {
     this.phaseTotalTime = durationSeconds;
 
     this.phaseTimer = setInterval(() => {
-      if (this.paused) return;
+      if (this.paused || this.hostHold) return;
       this.phaseTimeRemaining--;
 
       // Broadcast updated phase time
@@ -378,6 +383,33 @@ export class GameRoom {
     if (this.phaseTimer) {
       clearInterval(this.phaseTimer);
       this.phaseTimer = null;
+    }
+  }
+
+  // Host hold — freeze phase timer while TTS is speaking
+  holdPhase(): void {
+    if (this.hostHold) return;
+    this.hostHold = true;
+
+    // Safety cap: auto-release after MAX_HOLD_MS
+    this.hostHoldTimeout = setTimeout(() => {
+      this.releasePhase();
+    }, GameRoom.MAX_HOLD_MS);
+  }
+
+  releasePhase(): void {
+    if (!this.hostHold) return;
+    this.hostHold = false;
+
+    if (this.hostHoldTimeout) {
+      clearTimeout(this.hostHoldTimeout);
+      this.hostHoldTimeout = null;
+    }
+
+    // TTS is done — advance immediately, no reason to wait out remaining time
+    if (this.phaseTimer) {
+      this.clearPhaseTimer();
+      this.advancePhase();
     }
   }
 
@@ -562,6 +594,9 @@ export class GameRoom {
     // Accumulate all guesses across rounds
     this.allGuesses.push(...guesses);
 
+    // Snapshot team best before this round's guesses update it
+    const prevTeamBest = this.teamBest;
+
     // Update team best from this round's guesses
     for (const g of guesses) {
       if (g.rank < this.teamBest) this.teamBest = g.rank;
@@ -569,7 +604,7 @@ export class GameRoom {
 
     // Record for accolades and generate immediately (shown during reveal)
     this.accoladeEngine.recordRound(guesses);
-    this.cachedAccolades = this.generateAccolades();
+    this.cachedAccolades = this.generateAccolades(prevTeamBest);
 
     // Clear last hint result — hint decisions now happen during ROUND_REVEALING
     this.lastHintResult = null;
@@ -618,6 +653,11 @@ export class GameRoom {
 
   // Auto-advance through result phases
   private advancePhase(): void {
+    this.hostHold = false;
+    if (this.hostHoldTimeout) {
+      clearTimeout(this.hostHoldTimeout);
+      this.hostHoldTimeout = null;
+    }
     this.touch();
 
     switch (this.phase) {
@@ -832,9 +872,9 @@ export class GameRoom {
     return [...this.allGuesses].sort((a, b) => a.rank - b.rank); // best first
   }
 
-  private generateAccolades(): Accolade[] {
+  private generateAccolades(prevTeamBest?: number): Accolade[] {
     const guesses = Array.from(this.roundGuesses.values());
-    return this.accoladeEngine.generateAccolades(guesses, this.currentRound);
+    return this.accoladeEngine.generateAccolades(guesses, this.currentRound, prevTeamBest);
   }
 
   private getAccolades(): Accolade[] {
@@ -869,5 +909,9 @@ export class GameRoom {
     this.clearTimer();
     this.clearPhaseTimer();
     this.clearAfkTimer();
+    if (this.hostHoldTimeout) {
+      clearTimeout(this.hostHoldTimeout);
+      this.hostHoldTimeout = null;
+    }
   }
 }

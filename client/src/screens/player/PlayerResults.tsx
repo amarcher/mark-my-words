@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import type {
   RoundRevealingState,
   RoundHintRevealState,
@@ -12,9 +12,13 @@ import AccoladeCard from '../../components/AccoladeCard';
 import Leaderboard from '../../components/Leaderboard';
 import WordConnections from '../../components/WordConnections';
 import GuessHistory from '../../components/GuessHistory';
+import PlayerRevealStep from '../../components/PlayerRevealStep';
+import { useRevealSequence } from '../../hooks/useRevealSequence';
 import { socket } from '../../socket';
 
 type ResultState = RoundRevealingState | RoundHintRevealState | RoundScoreboardState | GameOverState;
+
+const ACCOLADE_DISPLAY_MS = 3000;
 
 interface Props {
   state: ResultState;
@@ -33,15 +37,35 @@ export default function PlayerResults({ state, game }: Props) {
   const isLeader = playerId === state.leaderId;
   const leaderName = state.players.find(p => p.id === state.leaderId)?.name;
 
-  // Persist data from ROUND_REVEALING across subsequent phases
+  const isRevealing = state.phase === 'ROUND_REVEALING';
+
+  const reveal = useRevealSequence(
+    isRevealing,
+    isRevealing ? state.revealedGuesses : undefined,
+    isRevealing ? state.accolades : undefined,
+  );
+
+  // Auto-advance after accolades display
+  const accoladeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (reveal.showingAccolades) {
+      accoladeTimerRef.current = setTimeout(() => {
+        reveal.advance();
+      }, ACCOLADE_DISPLAY_MS);
+    }
+    return () => {
+      if (accoladeTimerRef.current) clearTimeout(accoladeTimerRef.current);
+    };
+  }, [reveal.showingAccolades, reveal.advance]);
+
+  // Persist data from ROUND_REVEALING for use in subsequent phases
   const revealDataRef = useRef<{ guesses: GuessResult[]; accolades: Accolade[] } | null>(null);
-  if (state.phase === 'ROUND_REVEALING') {
+  if (isRevealing && reveal.shuffledGuesses.length > 0) {
     revealDataRef.current = {
-      guesses: [...state.revealedGuesses].sort((a, b) => a.rank - b.rank),
-      accolades: state.accolades,
+      guesses: [...reveal.shuffledGuesses].sort((a, b) => a.rank - b.rank),
+      accolades: reveal.accolades,
     };
   }
-  const revealData = revealDataRef.current;
 
   if (state.phase === 'GAME_OVER') {
     const winner = state.scoreboard[0];
@@ -114,10 +138,48 @@ export default function PlayerResults({ state, game }: Props) {
     );
   }
 
-  // Unified reveal flow: ROUND_REVEALING, ROUND_HINT_REVEAL, ROUND_SCOREBOARD
-  const isRevealing = state.phase === 'ROUND_REVEALING';
+  // During ROUND_REVEALING with active per-player sequence
+  if (isRevealing && !reveal.done && !reveal.showingAccolades && reveal.currentGuess) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6">
+        <PlayerRevealStep
+          key={reveal.step}
+          guess={reveal.currentGuess}
+          previousGuesses={reveal.previousGuesses}
+          players={state.players}
+          onComplete={reveal.advance}
+          compact
+        />
+      </div>
+    );
+  }
+
+  // Accolades step (still during ROUND_REVEALING, compact view)
+  if (isRevealing && reveal.showingAccolades) {
+    const myAccolades = reveal.accolades.filter(a => a.playerId === playerId);
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6">
+        {myAccolades.length > 0 ? (
+          <>
+            <p className="text-white/30 text-xs uppercase tracking-widest mb-4 text-center">Your Awards</p>
+            <div className="w-full max-w-sm space-y-3">
+              {myAccolades.map((a, i) => (
+                <AccoladeCard key={a.type} accolade={a} index={i} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-white/40 text-sm">Awards being announced...</p>
+        )}
+      </div>
+    );
+  }
+
+  // ROUND_HINT_REVEAL and ROUND_SCOREBOARD
   const isHintReveal = state.phase === 'ROUND_HINT_REVEAL';
   const isScoreboard = state.phase === 'ROUND_SCOREBOARD';
+  const revealData = revealDataRef.current;
 
   return (
     <div className="min-h-screen flex flex-col items-center p-6">
@@ -166,90 +228,69 @@ export default function PlayerResults({ state, game }: Props) {
         );
       })()}
 
-      {/* Revealing / Hint phases: round guesses + accolades */}
-      {!isScoreboard && revealData && (
-        <>
-          <div className="w-full max-w-sm space-y-2">
-            {revealData.guesses.map((guess, i) => {
-              const isMe = guess.playerId === playerId;
-              return (
-                <div
-                  key={guess.playerId}
-                  className={`flex items-center gap-3 p-3 rounded-xl ${
-                    !isHintReveal ? 'animate-slide-up' : ''
-                  } ${
-                    isMe
-                      ? 'bg-accent/10 border border-accent/30'
-                      : 'bg-bg-card/50 border border-white/5'
-                  }`}
-                  style={!isHintReveal ? { animationDelay: `${i * 100}ms` } : undefined}
-                >
-                  <RankBadge rank={guess.rank} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm truncate ${isMe ? 'text-accent' : 'text-white/70'}`}>
-                      {isMe ? 'You' : guess.playerName}
-                    </p>
-                    <p className="text-white/40 font-mono text-xs truncate">"{guess.word}"</p>
-                  </div>
-                  <span className="font-mono text-accent text-sm shrink-0">+{guess.points}</span>
+      {/* Hint reveal phase: show round summary */}
+      {isHintReveal && revealData && (
+        <div className="w-full max-w-sm space-y-2 mt-2">
+          {revealData.guesses.map((guess) => {
+            const isMe = guess.playerId === playerId;
+            return (
+              <div
+                key={guess.playerId}
+                className={`flex items-center gap-3 p-3 rounded-xl ${
+                  isMe
+                    ? 'bg-accent/10 border border-accent/30'
+                    : 'bg-bg-card/50 border border-white/5'
+                }`}
+              >
+                <RankBadge rank={guess.rank} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className={`font-semibold text-sm truncate ${isMe ? 'text-accent' : 'text-white/70'}`}>
+                    {isMe ? 'You' : guess.playerName}
+                  </p>
+                  <p className="text-white/40 font-mono text-xs truncate">"{guess.word}"</p>
                 </div>
-              );
-            })}
-          </div>
+                <span className="font-mono text-accent text-sm shrink-0">+{guess.points}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-          {!revealData.guesses.some(g => g.playerId === playerId) && (
-            <p className="text-white/30 text-sm mt-4">You didn't submit a guess this round</p>
+      {/* Hint request buttons during reveal phase (when reveals are done) */}
+      {isRevealing && reveal.done && state.phase === 'ROUND_REVEALING' && (
+        <>
+          {state.hintMode === 'host' && state.hintAvailable && isLeader && (
+            <button
+              onClick={game.requestHint}
+              disabled={state.hintApproved}
+              className={`mt-4 text-xs font-semibold rounded-lg px-4 py-1.5 transition-colors border ${
+                state.hintApproved
+                  ? 'text-amber-300/50 border-amber-400/15 bg-amber-500/5 cursor-not-allowed'
+                  : 'text-amber-300 border-amber-400/30 hover:bg-amber-400/10 bg-gradient-to-r from-amber-500/5 to-yellow-500/5'
+              }`}
+            >
+              {state.hintApproved ? 'Hint Queued' : 'Grant Hint'}
+            </button>
           )}
 
-          {/* Accolades - fade in below guesses */}
-          {revealData.accolades.filter(a => a.playerId === playerId).length > 0 && (
-            <div className="w-full max-w-sm mt-4 space-y-3">
-              <p className="text-white/30 text-xs uppercase tracking-widest text-center">Your Awards</p>
-              {revealData.accolades
-                .filter(a => a.playerId === playerId)
-                .map((a, i) => (
-                  <AccoladeCard key={a.type} accolade={a} index={i} />
-                ))}
-            </div>
-          )}
-
-          {/* Hint request buttons during reveal phase */}
-          {isRevealing && state.phase === 'ROUND_REVEALING' && (
-            <>
-              {state.hintMode === 'host' && state.hintAvailable && isLeader && (
-                <button
-                  onClick={game.requestHint}
-                  disabled={state.hintApproved}
-                  className={`mt-4 text-xs font-semibold rounded-lg px-4 py-1.5 transition-colors border ${
-                    state.hintApproved
-                      ? 'text-amber-300/50 border-amber-400/15 bg-amber-500/5 cursor-not-allowed'
-                      : 'text-amber-300 border-amber-400/30 hover:bg-amber-400/10 bg-gradient-to-r from-amber-500/5 to-yellow-500/5'
-                  }`}
-                >
-                  {state.hintApproved ? 'Hint Queued' : 'Grant Hint'}
-                </button>
-              )}
-
-              {state.hintMode === 'vote' && state.hintAvailable && state.hintVote && (() => {
-                const hasVoted = state.hintVote!.voterIds.includes(socket.id || '');
-                return (
-                  <button
-                    onClick={game.requestHint}
-                    disabled={hasVoted}
-                    className={`mt-4 text-xs font-semibold rounded-lg px-4 py-1.5 transition-colors border ${
-                      hasVoted
-                        ? 'text-amber-300/50 border-amber-400/15 bg-amber-500/5 cursor-not-allowed'
-                        : 'text-amber-300 border-amber-400/30 hover:bg-amber-400/10 bg-gradient-to-r from-amber-500/5 to-yellow-500/5'
-                    }`}
-                  >
-                    {hasVoted
-                      ? `Voted (${state.hintVote!.currentVotes}/${state.hintVote!.votesNeeded})`
-                      : `Vote for Hint (${state.hintVote!.currentVotes}/${state.hintVote!.votesNeeded})`}
-                  </button>
-                );
-              })()}
-            </>
-          )}
+          {state.hintMode === 'vote' && state.hintAvailable && state.hintVote && (() => {
+            const hasVoted = state.hintVote!.voterIds.includes(socket.id || '');
+            return (
+              <button
+                onClick={game.requestHint}
+                disabled={hasVoted}
+                className={`mt-4 text-xs font-semibold rounded-lg px-4 py-1.5 transition-colors border ${
+                  hasVoted
+                    ? 'text-amber-300/50 border-amber-400/15 bg-amber-500/5 cursor-not-allowed'
+                    : 'text-amber-300 border-amber-400/30 hover:bg-amber-400/10 bg-gradient-to-r from-amber-500/5 to-yellow-500/5'
+                }`}
+              >
+                {hasVoted
+                  ? `Voted (${state.hintVote!.currentVotes}/${state.hintVote!.votesNeeded})`
+                  : `Vote for Hint (${state.hintVote!.currentVotes}/${state.hintVote!.votesNeeded})`}
+              </button>
+            );
+          })()}
         </>
       )}
     </div>

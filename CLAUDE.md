@@ -33,10 +33,10 @@ Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 
 **server** (`@mmw/server`) — Express + Socket.io (ESM, `"type": "module"`). Game logic is a server-authoritative state machine:
 - `RoomManager` — room lifecycle, player↔room mapping, host↔room mapping, auto-cleanup of inactive rooms
-- `GameRoom` — core phase machine: LOBBY → ROUND_ACTIVE → ROUND_REVEALING → (optional ROUND_HINT_REVEAL) → ROUND_SCOREBOARD → GAME_OVER. Manages timers, scoring, pause/resume. Result phases auto-advance on server timers; GAME_OVER stays until leader acts. Accolades are computed during ROUND_REVEALING (no separate phase). Client renders a persistent "reveal shell" layout across REVEALING/HINT_REVEAL/SCOREBOARD to avoid screen-swapping.
+- `GameRoom` — core phase machine: LOBBY → ROUND_ACTIVE → ROUND_REVEALING → (optional ROUND_HINT_REVEAL) → ROUND_SCOREBOARD → GAME_OVER. Manages timers, scoring, pause/resume. Result phases auto-advance on server timers; GAME_OVER stays until leader acts. Accolades are computed during ROUND_REVEALING (no separate phase). During ROUND_REVEALING, the client drives a per-player sequential reveal with odometer animation — the server holds the phase timer (`phase:hold`/`phase:release`, `MAX_HOLD_MS=90s` safety cap) while the client sequences through each player's reveal (~5.5s each) then accolades, releasing when done. HINT_REVEAL and SCOREBOARD phases use a persistent "reveal shell" layout.
 - `handlers.ts` — socket event registration, delegates to RoomManager
 - `WordRanker` — loads word rankings from `server/data/rankings/{word}.json` files. Valid but unranked words get deterministic hash-based ranks (5000–50000)
-- `AccoladeEngine` — generates 2-3 fun accolades per round from guess data
+- `AccoladeEngine` — generates 2-3 fun accolades per round from guess data. "Biggest Leap" requires the guess to beat the team's previous best rank (not just the player's personal best)
 
 **client** (`@mmw/client`) — React + Vite + Tailwind. All socket state lives in `socket.ts` via `useGameState()` hook (singleton socket, auto-reconnect). Routes: `/` (home), `/host` (TV display), `/play` (join form), `/play/:roomCode` (prefilled join). Vite proxies `/socket.io` to `:3001` in dev.
 

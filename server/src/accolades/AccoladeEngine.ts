@@ -61,7 +61,7 @@ export class AccoladeEngine {
     }
   }
 
-  generateAccolades(guesses: GuessResult[], roundNumber: number): Accolade[] {
+  generateAccolades(guesses: GuessResult[], roundNumber: number, prevTeamBest?: number): Accolade[] {
     if (guesses.length === 0) return [];
 
     const accolades: Accolade[] = [];
@@ -118,7 +118,11 @@ export class AccoladeEngine {
         }
       }
 
-      if (leapPlayer && biggestLeap > 50) {
+      // Only award if the guess actually beat the team's previous best rank
+      const beatTeamBest = leapPlayer && prevTeamBest !== undefined
+        ? leapPlayer.rank < prevTeamBest
+        : true; // no teamBest info → allow (backwards compat)
+      if (leapPlayer && biggestLeap > 50 && beatTeamBest) {
         accolades.push({
           type: 'biggest_leap',
           playerId: leapPlayer.playerId,

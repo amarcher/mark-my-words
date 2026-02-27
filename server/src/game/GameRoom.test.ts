@@ -1233,4 +1233,147 @@ describe('GameRoom', () => {
       });
     });
   });
+
+  describe('Phase hold/release (TTS coordination)', () => {
+    it('holdPhase freezes phase timer', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+
+      room.holdPhase();
+      vi.advanceTimersByTime(revealTime(2) * 1000 + 5000);
+      // Should still be in REVEALING because held
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+    });
+
+    it('releasePhase advances immediately', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+
+      room.holdPhase();
+      vi.advanceTimersByTime(2000);
+      room.releasePhase();
+      // Should have advanced past REVEALING
+      expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
+    });
+
+    it('holdPhase is idempotent', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+
+      room.holdPhase();
+      room.holdPhase(); // second call is no-op
+      vi.advanceTimersByTime(revealTime(2) * 1000 + 5000);
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+
+      room.releasePhase();
+      expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
+    });
+
+    it('releasePhase is idempotent', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+
+      room.holdPhase();
+      room.releasePhase();
+      expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
+      room.releasePhase(); // no-op, should not error
+      expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
+    });
+
+    it('safety cap auto-releases after MAX_HOLD_MS (90s)', () => {
+      const ids = startGame();
+      room.submitGuess(ids[0], 'test');
+      room.submitGuess(ids[1], 'test');
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+
+      room.holdPhase();
+      // Advance less than 90s — still held
+      vi.advanceTimersByTime(89_000);
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+
+      // Advance past 90s — safety cap triggers release
+      vi.advanceTimersByTime(2_000);
+      expect(room.getPhase()).toBe('ROUND_SCOREBOARD');
+    });
+
+    it('hold works across REVEALING → HINT_REVEAL', () => {
+      addPlayers(2);
+      room.updateSettings({ hintMode: 'host' });
+      room.startGame();
+      room.approveHint();
+      room.submitGuess('player0', 'test');
+      room.submitGuess('player1', 'test');
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+
+      room.holdPhase();
+      vi.advanceTimersByTime(revealTime(2) * 1000 + 5000);
+      // Still held in REVEALING
+      expect(room.getPhase()).toBe('ROUND_REVEALING');
+
+      room.releasePhase();
+      // Should advance to HINT_REVEAL (because hint was approved)
+      expect(room.getPhase()).toBe('ROUND_HINT_REVEAL');
+    });
+  });
+
+  describe('Biggest Leap accolade integration', () => {
+    it('generates biggest_leap when guess beats previous team best', () => {
+      addPlayers(2);
+      room.updateSettings({ maxRounds: 5 });
+
+      // Round 1: both guess rank 500 → teamBest = 500
+      mockWordRankerInstance.getRank.mockReturnValue(500);
+      room.startGame();
+      room.submitGuess('player0', 'far');
+      room.submitGuess('player1', 'far2');
+      advancePastResults(2);
+
+      // Round 2: player0 guesses rank 100 → big leap, beats teamBest (500)
+      mockWordRankerInstance.getRank.mockReturnValue(100);
+      room.submitGuess('player0', 'close');
+      mockWordRankerInstance.getRank.mockReturnValue(400);
+      room.submitGuess('player1', 'medium');
+
+      // Now in ROUND_REVEALING — check accolades
+      const state = room.getState();
+      expect(state.phase).toBe('ROUND_REVEALING');
+      if (state.phase === 'ROUND_REVEALING') {
+        const leapAccolade = state.accolades.find(a => a.type === 'biggest_leap');
+        expect(leapAccolade).toBeDefined();
+        expect(leapAccolade!.playerId).toBe('player0');
+      }
+    });
+
+    it('does NOT generate biggest_leap when guess does not beat team best', () => {
+      addPlayers(2);
+      room.updateSettings({ maxRounds: 5 });
+
+      // Round 1: player0 rank 500, player1 rank 150 → teamBest = 150
+      mockWordRankerInstance.getRank.mockReturnValue(500);
+      room.startGame();
+      room.submitGuess('player0', 'far');
+      mockWordRankerInstance.getRank.mockReturnValue(150);
+      room.submitGuess('player1', 'close');
+      advancePastResults(2);
+
+      // Round 2: player0 improves personally (500→200), but 200 > teamBest (150)
+      mockWordRankerInstance.getRank.mockReturnValue(200);
+      room.submitGuess('player0', 'better');
+      mockWordRankerInstance.getRank.mockReturnValue(300);
+      room.submitGuess('player1', 'worse');
+
+      const state = room.getState();
+      expect(state.phase).toBe('ROUND_REVEALING');
+      if (state.phase === 'ROUND_REVEALING') {
+        const leapAccolade = state.accolades.find(a => a.type === 'biggest_leap');
+        expect(leapAccolade).toBeUndefined();
+      }
+    });
+  });
 });

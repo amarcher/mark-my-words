@@ -116,13 +116,13 @@ describe('AccoladeEngine', () => {
       expect(accolades.some(a => a.type === 'brave_explorer')).toBe(false);
     });
 
-    it('generates biggest_leap when improvement > 50 in round 2+', () => {
+    it('generates biggest_leap when improvement > 50 and beats team best', () => {
       // Round 1 history
       engine.recordRound([makeGuess({ playerId: 'p1', rank: 500 })]);
-      // Round 2 guess
+      // Round 2 guess beats prevTeamBest of 500
       const guesses = [makeGuess({ playerId: 'p1', rank: 100 })];
       engine.recordRound(guesses);
-      const accolades = engine.generateAccolades(guesses, 2);
+      const accolades = engine.generateAccolades(guesses, 2, 500);
       expect(accolades.some(a => a.type === 'biggest_leap')).toBe(true);
     });
 
@@ -137,7 +137,16 @@ describe('AccoladeEngine', () => {
       engine.recordRound([makeGuess({ playerId: 'p1', rank: 500 })]);
       const guesses = [makeGuess({ playerId: 'p1', rank: 460 })];
       engine.recordRound(guesses);
-      const accolades = engine.generateAccolades(guesses, 2);
+      const accolades = engine.generateAccolades(guesses, 2, 500);
+      expect(accolades.some(a => a.type === 'biggest_leap')).toBe(false);
+    });
+
+    it('does NOT generate biggest_leap when guess does not beat team best', () => {
+      // Player improved personally (500 → 200) but team best was already 150
+      engine.recordRound([makeGuess({ playerId: 'p1', rank: 500 })]);
+      const guesses = [makeGuess({ playerId: 'p1', rank: 200 })];
+      engine.recordRound(guesses);
+      const accolades = engine.generateAccolades(guesses, 2, 150);
       expect(accolades.some(a => a.type === 'biggest_leap')).toBe(false);
     });
 
@@ -316,7 +325,7 @@ describe('AccoladeEngine', () => {
       engine.recordRound([makeGuess({ playerId: 'p1', rank: 500 })]);
       const guesses = [makeGuess({ playerId: 'p1', rank: 100 })];
       engine.recordRound(guesses);
-      const accolades = engine.generateAccolades(guesses, 2);
+      const accolades = engine.generateAccolades(guesses, 2, 500);
       const leap = accolades.find(a => a.type === 'biggest_leap');
       if (leap) {
         expect(leap.description).toContain('400');

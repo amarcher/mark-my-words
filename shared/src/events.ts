@@ -21,6 +21,8 @@ export interface ClientToServerEvents {
   'game:pause': () => void;
   'game:resume': () => void;
   'game:hint': () => void;
+  'phase:hold': () => void;
+  'phase:release': () => void;
   'room:reconnect': (
     data: { roomCode: string; playerName: string },
     callback: (res: { success: boolean; error?: string }) => void

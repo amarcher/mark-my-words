@@ -5,13 +5,15 @@ interface Props {
   onResume: () => void;
   onLeave: () => void;
   onEndGame: () => void;
+  extraControls?: React.ReactNode;
 }
 
-export default function PauseOverlay({ paused, afkCountdown, onPause, onResume, onLeave, onEndGame }: Props) {
+export default function PauseOverlay({ paused, afkCountdown, onPause, onResume, onLeave, onEndGame, extraControls }: Props) {
   return (
     <>
       {/* Floating controls */}
       <div className="fixed top-4 right-4 z-50 flex gap-2">
+        {extraControls}
         <button
           onClick={paused ? onResume : onPause}
           className="bg-bg-card/80 backdrop-blur border border-white/10 rounded-lg px-4 py-2 text-sm hover:bg-bg-card transition-colors"

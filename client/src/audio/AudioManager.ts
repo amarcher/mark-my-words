@@ -11,10 +11,38 @@ export interface AnnouncementEntry {
 }
 
 const STORAGE_KEY = 'mmw-audio-muted';
+const TTS_SETTINGS_KEY = 'mmw-tts-settings';
 const DUCK_VOLUME = 0.15;
 const DUCK_IN_MS = 300;
 const DUCK_OUT_MS = 500;
 const TTS_TIMEOUT_MS = 8000; // Safety timeout if onend/onerror never fire
+
+export interface TTSSettings {
+  voiceName: string | null; // null = browser default
+  rate: number; // 0.5–2.0
+  pitch: number; // 0.5–2.0
+}
+
+const DEFAULT_TTS: TTSSettings = { voiceName: null, rate: 1.0, pitch: 1.0 };
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
+}
+
+function loadTTSSettings(): TTSSettings {
+  try {
+    const raw = localStorage.getItem(TTS_SETTINGS_KEY);
+    if (!raw) return { ...DEFAULT_TTS };
+    const p = JSON.parse(raw);
+    return {
+      voiceName: typeof p.voiceName === 'string' ? p.voiceName : null,
+      rate: typeof p.rate === 'number' ? clamp(p.rate, 0.5, 2.0) : 1.0,
+      pitch: typeof p.pitch === 'number' ? clamp(p.pitch, 0.5, 2.0) : 1.0,
+    };
+  } catch {
+    return { ...DEFAULT_TTS };
+  }
+}
 
 class AudioManager {
   private ctx: AudioContext | null = null;
@@ -28,10 +56,12 @@ class AudioManager {
   private speaking = false;
   private mp3Cache = new Map<string, boolean>(); // id → exists
   private voicesReady = false;
+  private tts: TTSSettings;
   onQueueDrained: (() => void) | null = null;
 
   constructor() {
     this.muted = localStorage.getItem(STORAGE_KEY) === 'true';
+    this.tts = loadTTSSettings();
     // Pre-load voices — Chrome loads them async
     this.warmUpVoices();
   }
@@ -88,6 +118,33 @@ class AudioManager {
       this.speaking = false;
       this.queue = [];
     }
+  }
+
+  getTTSSettings(): TTSSettings {
+    return { ...this.tts };
+  }
+
+  setTTSSettings(settings: Partial<TTSSettings>): void {
+    Object.assign(this.tts, settings);
+    localStorage.setItem(TTS_SETTINGS_KEY, JSON.stringify(this.tts));
+  }
+
+  /** Get available speech synthesis voices */
+  getVoices(): SpeechSynthesisVoice[] {
+    return speechSynthesis.getVoices();
+  }
+
+  /** Speak text directly using current TTS settings (for test button) */
+  speakDirect(text: string): void {
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = this.tts.rate;
+    utterance.pitch = this.tts.pitch;
+    if (this.tts.voiceName) {
+      const voice = speechSynthesis.getVoices().find(v => v.name === this.tts.voiceName);
+      if (voice) utterance.voice = voice;
+    }
+    speechSynthesis.speak(utterance);
   }
 
   setPaused(paused: boolean): void {
@@ -277,14 +334,21 @@ class AudioManager {
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
+      utterance.rate = this.tts.rate;
+      utterance.pitch = this.tts.pitch;
 
-      // Pick a voice explicitly (Chrome sometimes fails without one)
+      // Use user-selected voice, falling back to an English voice
       const voices = speechSynthesis.getVoices();
-      const english = voices.find(v => v.lang.startsWith('en') && v.default)
-        || voices.find(v => v.lang.startsWith('en'));
-      if (english) utterance.voice = english;
+      if (this.tts.voiceName) {
+        const selected = voices.find(v => v.name === this.tts.voiceName);
+        if (selected) {
+          utterance.voice = selected;
+        }
+      } else {
+        const english = voices.find(v => v.lang.startsWith('en') && v.default)
+          || voices.find(v => v.lang.startsWith('en'));
+        if (english) utterance.voice = english;
+      }
 
       let settled = false;
       const settle = () => {

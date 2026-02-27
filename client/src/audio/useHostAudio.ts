@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { audioManager } from './AudioManager';
+import type { TTSSettings } from './AudioManager';
 import {
   roundStartAnnouncement,
   roundEndAnnouncement,
@@ -27,9 +28,20 @@ function getZoneLabel(teamBest: number): string {
 
 export function useHostAudio(gameState: GameState | null) {
   const [muted, setMuted] = useState(audioManager.isMuted());
+  const [ttsSettings, setTtsSettings] = useState<TTSSettings>(audioManager.getTTSSettings());
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => speechSynthesis.getVoices());
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const prevPhaseRef = useRef<string | null>(null);
   const prevTeamBestZoneRef = useRef<string | null>(null);
   const winnerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load voices (Chrome fires voiceschanged async)
+  useEffect(() => {
+    const update = () => setVoices(speechSynthesis.getVoices());
+    speechSynthesis.addEventListener('voiceschanged', update);
+    update();
+    return () => speechSynthesis.removeEventListener('voiceschanged', update);
+  }, []);
 
   const toggleMute = useCallback(() => {
     const next = !muted;
@@ -40,6 +52,14 @@ export function useHostAudio(gameState: GameState | null) {
   const unlockAudio = useCallback(() => {
     audioManager.unlock();
   }, []);
+
+  const updateTTSSettings = useCallback((partial: Partial<TTSSettings>) => {
+    audioManager.setTTSSettings(partial);
+    setTtsSettings(audioManager.getTTSSettings());
+  }, []);
+
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   // Phase transition logic
   useEffect(() => {
@@ -173,5 +193,9 @@ export function useHostAudio(gameState: GameState | null) {
     };
   }, []);
 
-  return { muted, toggleMute, unlockAudio };
+  return {
+    muted, toggleMute, unlockAudio,
+    ttsSettings, updateTTSSettings, voices,
+    settingsOpen, openSettings, closeSettings,
+  };
 }

@@ -8,7 +8,8 @@ import HostGameOver from './HostGameOver';
 import PauseOverlay from '../../components/PauseOverlay';
 import RoomClosedModal from '../../components/RoomClosedModal';
 import { useHostAudio } from '../../audio/useHostAudio';
-import MuteToggle from '../../audio/MuteToggle';
+import AudioControls from '../../audio/AudioControls';
+import TTSSettingsModal from '../../audio/TTSSettingsModal';
 
 export default function HostScreen() {
   const { connected, reconnecting } = useSocket();
@@ -16,7 +17,11 @@ export default function HostScreen() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
-  const { muted, toggleMute, unlockAudio } = useHostAudio(game.gameState);
+  const {
+    muted, toggleMute, unlockAudio,
+    ttsSettings, updateTTSSettings, voices,
+    settingsOpen, openSettings, closeSettings,
+  } = useHostAudio(game.gameState);
 
   const handleCreate = async () => {
     unlockAudio();
@@ -84,7 +89,7 @@ export default function HostScreen() {
           onResume={game.resume}
           onLeave={game.closeRoom}
           onEndGame={game.endGame}
-          extraControls={<MuteToggle muted={muted} onToggle={toggleMute} />}
+          extraControls={<AudioControls muted={muted} onToggle={toggleMute} onOpenSettings={openSettings} />}
         />
       )}
 
@@ -94,7 +99,7 @@ export default function HostScreen() {
             return (
               <>
                 <div className="fixed top-4 right-4 z-50">
-                  <MuteToggle muted={muted} onToggle={toggleMute} />
+                  <AudioControls muted={muted} onToggle={toggleMute} onOpenSettings={openSettings} />
                 </div>
                 <HostLobby state={gameState} game={game} />
               </>
@@ -123,6 +128,14 @@ export default function HostScreen() {
           <span className="text-white/60 text-xs font-mono">{gameState.roomCode}</span>
         </div>
       )}
+
+      <TTSSettingsModal
+        open={settingsOpen}
+        onClose={closeSettings}
+        voices={voices}
+        settings={ttsSettings}
+        onSettingsChange={updateTTSSettings}
+      />
     </>
   );
 }

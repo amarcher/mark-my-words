@@ -1,0 +1,299 @@
+import { loadNarratorGate } from './gate';
+import { formatEvent } from './events';
+import type { NarratorBackend, NarratorGameEvent } from './types';
+
+const SYSTEM_PROMPT = `You are a snarky, entertaining gameshow host narrating a multiplayer word-guessing game called "Mark My Words." Players guess words ranked by semantic similarity to a secret word (rank 1 = secret word, higher = further away). The team shares a "team best" rank tracking their closest guess. Zones: Red (far), Orange (warmer), Green (close), Green Hot (very close).
+
+Rules:
+- NEVER ask if anyone is there or initiate unprompted conversation
+- Only speak when you receive a game event
+- Keep commentary brief (1-3 sentences per event)
+- Be playful and competitive — celebrate breakthroughs, tease bad guesses
+- Build excitement as the team gets closer to the secret word
+- Respond with ONLY spoken commentary — no stage directions or asterisks`;
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+async function fetchCommentary(messages: Message[], token: string): Promise<string> {
+  const res = await fetch('/api/narrator/claude', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-gate-token': token,
+    },
+    body: JSON.stringify({ messages, systemPrompt: SYSTEM_PROMPT }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Claude narrator failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.text;
+}
+
+function fetchTTSAudio(text: string, voiceId: string, token: string): Promise<ArrayBuffer> {
+  return fetch('/api/narrator/tts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-gate-token': token,
+    },
+    body: JSON.stringify({ text, voice_id: voiceId }),
+  }).then(async (res) => {
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`TTS request failed: ${res.status} ${errBody}`);
+    }
+    const ct = res.headers.get('content-type') ?? '';
+    if (!ct.includes('audio')) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`TTS returned non-audio response (${ct}): ${body}`);
+    }
+    return res.arrayBuffer();
+  });
+}
+
+const DEFAULT_VOICE_ID = 'TxGEqnHWrfWFTfGW9XjX'; // Josh
+const IDLE_DISCONNECT_MS = 30_000;
+
+export type TTSEngine = 'browser' | 'elevenlabs';
+
+export interface ClaudeNarratorOptions {
+  ttsEngine?: TTSEngine;
+  voiceName?: string | null;
+  rate?: number;
+  pitch?: number;
+  elevenLabsVoiceId?: string | null;
+}
+
+export class ClaudeNarratorBackend implements NarratorBackend {
+  readonly name = 'claude';
+  private ttsEngine: TTSEngine;
+  private voiceName: string | null;
+  private rate: number;
+  private pitch: number;
+  private elevenLabsVoiceId: string | null;
+  private messages: Message[] = [];
+  private _isConnected = false;
+  private _connectionError: string | null = null;
+  private onStateChange: (() => void) | null = null;
+  private onIdle: (() => void) | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private processing = false;
+  private eventQueue: NarratorGameEvent[] = [];
+  private audioContext: AudioContext | null = null;
+  private currentSource: AudioBufferSourceNode | null = null;
+  private intentionalDisconnect = false;
+  private _volume = 1;
+  private gainNode: GainNode | null = null;
+  private gateToken: string | null = null;
+
+  constructor(options?: ClaudeNarratorOptions) {
+    this.ttsEngine = options?.ttsEngine ?? 'elevenlabs';
+    this.voiceName = options?.voiceName ?? null;
+    this.rate = options?.rate ?? 1;
+    this.pitch = options?.pitch ?? 1;
+    this.elevenLabsVoiceId = options?.elevenLabsVoiceId ?? null;
+  }
+
+  setVoiceSettings(opts: Pick<ClaudeNarratorOptions, 'voiceName' | 'rate' | 'pitch' | 'elevenLabsVoiceId'>): void {
+    if (opts.voiceName !== undefined) this.voiceName = opts.voiceName ?? null;
+    if (opts.rate !== undefined) this.rate = opts.rate;
+    if (opts.pitch !== undefined) this.pitch = opts.pitch;
+    if (opts.elevenLabsVoiceId !== undefined) this.elevenLabsVoiceId = opts.elevenLabsVoiceId ?? null;
+  }
+
+  get isConnected(): boolean {
+    return this._isConnected;
+  }
+
+  get connectionError(): string | null {
+    return this._connectionError;
+  }
+
+  async connect(): Promise<void> {
+    if (this._isConnected) return;
+    this.intentionalDisconnect = false;
+    this._connectionError = null;
+    this.messages = [];
+
+    try {
+      const gate = loadNarratorGate();
+      if (!gate) {
+        throw new Error('Claude narrator not configured');
+      }
+      this.gateToken = gate.token;
+      if (this.ttsEngine === 'elevenlabs') {
+        this.audioContext = new AudioContext();
+        this.gainNode = this.audioContext.createGain();
+        this.gainNode.gain.value = this._volume;
+        this.gainNode.connect(this.audioContext.destination);
+      }
+      this._isConnected = true;
+      this.onStateChange?.();
+    } catch (err) {
+      this._connectionError = err instanceof Error ? err.message : 'Connection failed';
+      this.onStateChange?.();
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    this.intentionalDisconnect = true;
+    this._isConnected = false;
+    this.messages = [];
+    this.eventQueue = [];
+    this.processing = false;
+    this.gateToken = null;
+    this.clearIdleTimer();
+    if (this.currentSource) {
+      this.currentSource.stop();
+      this.currentSource = null;
+    }
+    if (this.audioContext) {
+      await this.audioContext.close().catch(() => {});
+      this.audioContext = null;
+      this.gainNode = null;
+    }
+    if (typeof speechSynthesis !== 'undefined') {
+      speechSynthesis.cancel();
+    }
+    this.onStateChange?.();
+  }
+
+  sendEvent(event: NarratorGameEvent): void {
+    if (!this._isConnected || this.intentionalDisconnect) return;
+
+    const text = formatEvent(event);
+    console.log('[ClaudeNarrator] Sending:', text);
+    this.clearIdleTimer();
+
+    this.eventQueue.push(event);
+    if (!this.processing) {
+      this.processQueue();
+    }
+  }
+
+  setVolume(volume: number): void {
+    this._volume = volume;
+    if (this.gainNode) {
+      this.gainNode.gain.value = volume;
+    }
+  }
+
+  setOnStateChange(cb: (() => void) | null): void {
+    this.onStateChange = cb;
+  }
+
+  setOnIdle(cb: (() => void) | null): void {
+    this.onIdle = cb;
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.eventQueue.length === 0 || !this._isConnected) {
+      this.processing = false;
+      this.resetIdleTimer();
+      this.onIdle?.();
+      return;
+    }
+
+    this.processing = true;
+
+    const events = this.eventQueue.splice(0);
+    const userText = events.map(e => formatEvent(e)).join('\n');
+    this.messages.push({ role: 'user', content: userText });
+
+    try {
+      const commentary = await fetchCommentary(this.messages, this.gateToken!);
+      if (this.intentionalDisconnect) return;
+
+      console.log('[ClaudeNarrator] Commentary:', commentary);
+      this.messages.push({ role: 'assistant', content: commentary });
+
+      await this.speakText(commentary);
+    } catch (err) {
+      console.error('[ClaudeNarrator] Error:', err);
+    }
+
+    this.processQueue();
+  }
+
+  private async speakText(text: string): Promise<void> {
+    if (this.intentionalDisconnect) return;
+
+    if (this.ttsEngine === 'browser') {
+      await this.speakBrowser(text);
+    } else {
+      await this.speakElevenLabs(text);
+    }
+  }
+
+  private async speakBrowser(text: string): Promise<void> {
+    if (typeof speechSynthesis === 'undefined') return;
+
+    await new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.volume = this._volume;
+      utterance.rate = this.rate;
+      utterance.pitch = this.pitch;
+      if (this.voiceName) {
+        const voice = speechSynthesis.getVoices().find(v => v.name === this.voiceName);
+        if (voice) utterance.voice = voice;
+      }
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      speechSynthesis.speak(utterance);
+    });
+  }
+
+  private async speakElevenLabs(text: string): Promise<void> {
+    if (!this.audioContext || !this.gainNode) return;
+
+    if (this.audioContext.state === 'suspended') {
+      await this.audioContext.resume();
+    }
+
+    try {
+      const voiceId = this.elevenLabsVoiceId || DEFAULT_VOICE_ID;
+      const audioData = await fetchTTSAudio(text, voiceId, this.gateToken!);
+      if (this.intentionalDisconnect || !this.audioContext) return;
+
+      const audioBuffer = await this.audioContext.decodeAudioData(audioData);
+      if (this.intentionalDisconnect || !this.audioContext) return;
+
+      await new Promise<void>((resolve) => {
+        const source = this.audioContext!.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(this.gainNode!);
+        this.currentSource = source;
+
+        source.onended = () => {
+          this.currentSource = null;
+          resolve();
+        };
+        source.start();
+      });
+    } catch (err) {
+      console.error('[ClaudeNarrator] TTS failed:', err);
+    }
+  }
+
+  private resetIdleTimer(): void {
+    this.clearIdleTimer();
+    this.idleTimer = setTimeout(() => {
+      console.log('[ClaudeNarrator] Idle timeout — disconnecting');
+      this.disconnect();
+      this.onStateChange?.();
+    }, IDLE_DISCONNECT_MS);
+  }
+
+  private clearIdleTimer(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+  }
+}

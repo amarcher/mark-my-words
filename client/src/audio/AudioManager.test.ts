@@ -71,7 +71,7 @@ describe('AudioManager TTS Settings', () => {
     it('returns defaults when localStorage is empty', async () => {
       const mgr = await freshManager();
       const settings = mgr.getTTSSettings();
-      expect(settings).toEqual({ voiceName: null, rate: 1.0, pitch: 1.0 });
+      expect(settings).toEqual({ voiceName: null, rate: 1.0, pitch: 1.0, narratorEngine: null, elevenLabsVoiceId: null });
     });
 
     it('loads saved settings from localStorage', async () => {
@@ -82,7 +82,7 @@ describe('AudioManager TTS Settings', () => {
       }));
       const mgr = await freshManager();
       const settings = mgr.getTTSSettings();
-      expect(settings).toEqual({ voiceName: 'Google UK English Male', rate: 1.5, pitch: 0.8 });
+      expect(settings).toEqual({ voiceName: 'Google UK English Male', rate: 1.5, pitch: 0.8, narratorEngine: null, elevenLabsVoiceId: null });
     });
 
     it('clamps out-of-range rate and pitch', async () => {
@@ -101,7 +101,7 @@ describe('AudioManager TTS Settings', () => {
       localStorage.setItem('mmw-tts-settings', 'not json!!!');
       const mgr = await freshManager();
       const settings = mgr.getTTSSettings();
-      expect(settings).toEqual({ voiceName: null, rate: 1.0, pitch: 1.0 });
+      expect(settings).toEqual({ voiceName: null, rate: 1.0, pitch: 1.0, narratorEngine: null, elevenLabsVoiceId: null });
     });
 
     it('handles missing fields gracefully', async () => {
@@ -111,12 +111,52 @@ describe('AudioManager TTS Settings', () => {
       expect(settings.voiceName).toBe('Foo');
       expect(settings.rate).toBe(1.0);
       expect(settings.pitch).toBe(1.0);
+      expect(settings.narratorEngine).toBeNull();
+      expect(settings.elevenLabsVoiceId).toBeNull();
     });
 
     it('treats non-string voiceName as null', async () => {
       localStorage.setItem('mmw-tts-settings', JSON.stringify({ voiceName: 42, rate: 1.0, pitch: 1.0 }));
       const mgr = await freshManager();
       expect(mgr.getTTSSettings().voiceName).toBeNull();
+    });
+
+    it('loads valid narratorEngine from localStorage', async () => {
+      localStorage.setItem('mmw-tts-settings', JSON.stringify({
+        voiceName: null, rate: 1.0, pitch: 1.0,
+        narratorEngine: 'claude', elevenLabsVoiceId: 'voice123',
+      }));
+      const mgr = await freshManager();
+      const settings = mgr.getTTSSettings();
+      expect(settings.narratorEngine).toBe('claude');
+      expect(settings.elevenLabsVoiceId).toBe('voice123');
+    });
+
+    it('rejects invalid narratorEngine values', async () => {
+      localStorage.setItem('mmw-tts-settings', JSON.stringify({
+        voiceName: null, rate: 1.0, pitch: 1.0,
+        narratorEngine: 'invalid-engine',
+      }));
+      const mgr = await freshManager();
+      expect(mgr.getTTSSettings().narratorEngine).toBeNull();
+    });
+
+    it('accepts all valid narratorEngine values', async () => {
+      for (const engine of ['elevenlabs-agent', 'openai-agent', 'claude']) {
+        localStorage.setItem('mmw-tts-settings', JSON.stringify({ narratorEngine: engine }));
+        vi.resetModules();
+        const mod = await import('./AudioManager.js');
+        expect(mod.audioManager.getTTSSettings().narratorEngine).toBe(engine);
+      }
+    });
+
+    it('treats non-string elevenLabsVoiceId as null', async () => {
+      localStorage.setItem('mmw-tts-settings', JSON.stringify({
+        voiceName: null, rate: 1.0, pitch: 1.0,
+        elevenLabsVoiceId: 42,
+      }));
+      const mgr = await freshManager();
+      expect(mgr.getTTSSettings().elevenLabsVoiceId).toBeNull();
     });
   });
 

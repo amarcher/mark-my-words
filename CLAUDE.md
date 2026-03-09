@@ -38,7 +38,7 @@ Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 - `WordRanker` — loads word rankings from `server/data/rankings/{word}.json` files. Valid but unranked words get deterministic hash-based ranks (5000–50000)
 - `AccoladeEngine` — generates 2-3 fun accolades per round from guess data. "Biggest Leap" requires the guess to beat the team's previous best rank (not just the player's personal best)
 
-**client** (`@mmw/client`) — React + Vite + Tailwind. All socket state lives in `socket.ts` via `useGameState()` hook (singleton socket, auto-reconnect). Routes: `/` (home), `/host` (TV display), `/play` (join form), `/play/:roomCode` (prefilled join). Vite proxies `/socket.io` to `:3001` in dev.
+**client** (`@mmw/client`) — React + Vite + Tailwind. All socket state lives in `socket.ts` via `useGameState()` hook (singleton socket, auto-reconnect). Routes: `/` (home), `/host` (TV display), `/play` (join form), `/play/:roomCode` (prefilled join). Vite proxies `/socket.io` and `/api` to `:3001` in dev.
 
 ## Key Design Decisions
 
@@ -50,6 +50,7 @@ Monorepo with three npm workspaces: `shared/`, `server/`, `client/`.
 - **End Game**: Both the host and the leader can end a game early via `game:end` socket event. Transitions any active phase to GAME_OVER, revealing the secret word. Collects in-progress round data before transitioning.
 - **Production serving**: In `NODE_ENV=production`, Express serves `client/dist` as static files with SPA catch-all. No CORS needed (same origin). Uses `import.meta.url` for path resolution (ESM — no `__dirname`).
 - **Docker build quirk**: shared package must be built with `--composite false` in Docker to avoid a TypeScript incremental emit bug that skips `.d.ts` files.
+- **AI Narrator system**: Optional AI gameshow host that replaces canned TTS with dynamic commentary. Gated behind a localStorage token (`contexto-elevenlabs` key, `{enabled: true, token: "..."}` value). Three backends: ElevenLabs Conversational Agent (WebSocket streaming), OpenAI Realtime (WebSocket + PCM16 audio), Claude + TTS (Anthropic API for text + ElevenLabs or browser for speech). Server provides 4 proxy routes under `/api/narrator/` (claude, tts, agent-auth, openai-agent-auth) protected by `x-gate-token` header matched against `NARRATOR_GATE_TOKEN` env var. Client architecture: `narrator/` module (gate, types, events, 3 backends, factory), `useNarrator` hook watches game phase transitions and sends narrator events, `useHostAudio` suppresses canned TTS when narrator is active (music continues). Settings stored in `TTSSettings` with `narratorEngine` and `elevenLabsVoiceId` fields. Env vars: `NARRATOR_GATE_TOKEN`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `OPENAI_API_KEY` (all optional).
 
 ## Data
 

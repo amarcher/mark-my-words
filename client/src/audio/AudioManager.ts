@@ -17,13 +17,20 @@ const DUCK_IN_MS = 300;
 const DUCK_OUT_MS = 500;
 const TTS_TIMEOUT_MS = 8000; // Safety timeout if onend/onerror never fire
 
+import type { NarratorEngine } from '../narrator/types';
+
 export interface TTSSettings {
   voiceName: string | null; // null = browser default
   rate: number; // 0.5–2.0
   pitch: number; // 0.5–2.0
+  narratorEngine: NarratorEngine;
+  elevenLabsVoiceId: string | null;
 }
 
-const DEFAULT_TTS: TTSSettings = { voiceName: null, rate: 1.0, pitch: 1.0 };
+const DEFAULT_TTS: TTSSettings = {
+  voiceName: null, rate: 1.0, pitch: 1.0,
+  narratorEngine: null, elevenLabsVoiceId: null,
+};
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
@@ -34,10 +41,13 @@ function loadTTSSettings(): TTSSettings {
     const raw = localStorage.getItem(TTS_SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_TTS };
     const p = JSON.parse(raw);
+    const validEngines = ['elevenlabs-agent', 'openai-agent', 'claude'];
     return {
       voiceName: typeof p.voiceName === 'string' ? p.voiceName : null,
       rate: typeof p.rate === 'number' ? clamp(p.rate, 0.5, 2.0) : 1.0,
       pitch: typeof p.pitch === 'number' ? clamp(p.pitch, 0.5, 2.0) : 1.0,
+      narratorEngine: validEngines.includes(p.narratorEngine) ? p.narratorEngine : null,
+      elevenLabsVoiceId: typeof p.elevenLabsVoiceId === 'string' ? p.elevenLabsVoiceId : null,
     };
   } catch {
     return { ...DEFAULT_TTS };

@@ -10,6 +10,7 @@ import RoomClosedModal from '../../components/RoomClosedModal';
 import { useHostAudio } from '../../audio/useHostAudio';
 import AudioControls from '../../audio/AudioControls';
 import TTSSettingsModal from '../../audio/TTSSettingsModal';
+import { useNarrator } from '../../hooks/useNarrator';
 
 export default function HostScreen() {
   const { connected, reconnecting } = useSocket();
@@ -21,7 +22,17 @@ export default function HostScreen() {
     muted, toggleMute, unlockAudio,
     ttsSettings, updateTTSSettings, voices,
     settingsOpen, openSettings, closeSettings,
+    narratorAvailable, narratorActive,
   } = useHostAudio(game.gameState);
+
+  const { narratorConnected, narratorError } = useNarrator(game.gameState, {
+    narratorEngine: ttsSettings.narratorEngine,
+    muted,
+    voiceName: ttsSettings.voiceName,
+    rate: ttsSettings.rate,
+    pitch: ttsSettings.pitch,
+    elevenLabsVoiceId: ttsSettings.elevenLabsVoiceId,
+  });
 
   const handleCreate = async () => {
     unlockAudio();
@@ -109,7 +120,7 @@ export default function HostScreen() {
           case 'ROUND_REVEALING':
           case 'ROUND_HINT_REVEAL':
           case 'ROUND_SCOREBOARD':
-            return <HostRoundResults state={gameState} game={game} />;
+            return <HostRoundResults state={gameState} game={game} narratorActive={narratorActive} />;
           case 'GAME_OVER':
             return <HostGameOver state={gameState} game={game} />;
         }
@@ -135,6 +146,9 @@ export default function HostScreen() {
         voices={voices}
         settings={ttsSettings}
         onSettingsChange={updateTTSSettings}
+        narratorAvailable={narratorAvailable}
+        narratorConnected={narratorConnected}
+        narratorError={narratorError}
       />
     </>
   );

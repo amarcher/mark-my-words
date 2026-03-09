@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@elevenlabs/client": "^0.15.0",
     "@mmw/shared": "*",
     "matter-js": "^0.20.0",
     "qrcode.react": "^4.2.0",

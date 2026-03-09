@@ -15,6 +15,8 @@ import {
 import { socket } from '../socket';
 import { getRankZone, RANK_ZONES } from '@mmw/shared';
 import type { GameState } from '@mmw/shared';
+import { isNarratorAvailable } from '../narrator/gate';
+import type { NarratorEngine } from '../narrator/types';
 
 /** Map zone key to a display label for announcements */
 function getZoneLabel(teamBest: number): string {
@@ -34,6 +36,8 @@ export function useHostAudio(gameState: GameState | null) {
   const prevPhaseRef = useRef<string | null>(null);
   const prevTeamBestZoneRef = useRef<string | null>(null);
   const winnerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [narratorAvailable] = useState(() => isNarratorAvailable());
+  const narratorActive = ttsSettings.narratorEngine !== null && !muted;
 
   // Load voices (Chrome fires voiceschanged async)
   useEffect(() => {
@@ -86,38 +90,43 @@ export function useHostAudio(gameState: GameState | null) {
         socket.emit('phase:hold');
       }
 
-      // Phase-specific announcements
-      switch (currentPhase) {
-        case 'ROUND_ACTIVE':
-          audioManager.enqueue(roundStartAnnouncement(gameState.round.roundNumber, gameState.guessHistory));
-          // Reset zone tracking for new round
-          prevTeamBestZoneRef.current = getRankZone(gameState.teamBest);
-          break;
+      // Phase-specific announcements (skip when narrator is active)
+      if (!narratorActive) {
+        switch (currentPhase) {
+          case 'ROUND_ACTIVE':
+            audioManager.enqueue(roundStartAnnouncement(gameState.round.roundNumber, gameState.guessHistory));
+            break;
 
-        case 'ROUND_REVEALING':
-          audioManager.enqueue(roundEndAnnouncement());
-          break;
+          case 'ROUND_REVEALING':
+            audioManager.enqueue(roundEndAnnouncement());
+            break;
 
-        case 'ROUND_HINT_REVEAL': {
-          const hint = hintRevealAnnouncement(gameState);
-          if (hint) audioManager.enqueue(hint);
-          break;
-        }
-
-        case 'ROUND_SCOREBOARD':
-          audioManager.enqueue(scoreboardAnnouncement(gameState.scoreboard));
-          break;
-
-        case 'GAME_OVER':
-          audioManager.enqueue(gameOverAnnouncement(gameState.secretWord));
-          // Delayed winner announcement
-          if (gameState.scoreboard.length > 0) {
-            const winner = gameState.scoreboard[0];
-            winnerTimeoutRef.current = setTimeout(() => {
-              audioManager.enqueue(winnerAnnouncement(winner.playerName, winner.totalScore));
-            }, 3000);
+          case 'ROUND_HINT_REVEAL': {
+            const hint = hintRevealAnnouncement(gameState);
+            if (hint) audioManager.enqueue(hint);
+            break;
           }
-          break;
+
+          case 'ROUND_SCOREBOARD':
+            audioManager.enqueue(scoreboardAnnouncement(gameState.scoreboard));
+            break;
+
+          case 'GAME_OVER':
+            audioManager.enqueue(gameOverAnnouncement(gameState.secretWord));
+            // Delayed winner announcement
+            if (gameState.scoreboard.length > 0) {
+              const winner = gameState.scoreboard[0];
+              winnerTimeoutRef.current = setTimeout(() => {
+                audioManager.enqueue(winnerAnnouncement(winner.playerName, winner.totalScore));
+              }, 3000);
+            }
+            break;
+        }
+      }
+
+      // Reset zone tracking for new round (always, regardless of narrator)
+      if (currentPhase === 'ROUND_ACTIVE') {
+        prevTeamBestZoneRef.current = getRankZone(gameState.teamBest);
       }
 
       // Music: ambient.mp3 plays during LOBBY and ROUND_ACTIVE, stops otherwise.
@@ -155,15 +164,15 @@ export function useHostAudio(gameState: GameState | null) {
 
     // Guess reveal and accolade TTS are now driven per-step by HostRoundResults
 
-    // Zone breakthrough detection during ROUND_ACTIVE
-    if (currentPhase === 'ROUND_ACTIVE') {
+    // Zone breakthrough detection during ROUND_ACTIVE (skip when narrator active)
+    if (currentPhase === 'ROUND_ACTIVE' && !narratorActive) {
       const currentZone = getRankZone(gameState.teamBest);
       if (prevTeamBestZoneRef.current && currentZone !== prevTeamBestZoneRef.current) {
         audioManager.enqueue(zoneBreakthroughAnnouncement(getZoneLabel(gameState.teamBest)));
       }
       prevTeamBestZoneRef.current = currentZone;
     }
-  }, [gameState]);
+  }, [gameState, narratorActive]);
 
   // Pause handling
   useEffect(() => {
@@ -171,16 +180,18 @@ export function useHostAudio(gameState: GameState | null) {
     audioManager.setPaused(gameState.paused);
   }, [gameState?.paused]);
 
-  // Socket event listeners for real-time events
+  // Socket event listeners for real-time events (skip when narrator active)
   useEffect(() => {
     const onPlayerJoined = (data: { playerId: string; playerName: string }) => {
-      if (prevPhaseRef.current === 'LOBBY') {
+      if (prevPhaseRef.current === 'LOBBY' && !narratorActive) {
         audioManager.enqueue(playerJoinedAnnouncement(data.playerName));
       }
     };
 
     const onPlayerSubmitted = (data: { playerId: string; playerName: string }) => {
-      audioManager.enqueue(playerSubmittedAnnouncement(data.playerName));
+      if (!narratorActive) {
+        audioManager.enqueue(playerSubmittedAnnouncement(data.playerName));
+      }
     };
 
     socket.on('player:joined', onPlayerJoined);
@@ -191,11 +202,12 @@ export function useHostAudio(gameState: GameState | null) {
       socket.off('round:player-submitted', onPlayerSubmitted);
       if (winnerTimeoutRef.current) clearTimeout(winnerTimeoutRef.current);
     };
-  }, []);
+  }, [narratorActive]);
 
   return {
     muted, toggleMute, unlockAudio,
     ttsSettings, updateTTSSettings, voices,
     settingsOpen, openSettings, closeSettings,
+    narratorAvailable, narratorActive,
   };
 }

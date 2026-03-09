@@ -24,6 +24,7 @@ interface Props {
   game: {
     notifications: string[];
   };
+  narratorActive?: boolean;
 }
 
 const ACCOLADE_DISPLAY_MS = 3000;
@@ -50,7 +51,7 @@ function PhaseProgressBar({ timeRemaining, totalTime, paused }: { timeRemaining:
   );
 }
 
-export default function HostRoundResults({ state }: Props) {
+export default function HostRoundResults({ state, narratorActive = false }: Props) {
   const isRevealing = state.phase === 'ROUND_REVEALING';
   const isScoreboard = state.phase === 'ROUND_SCOREBOARD';
   const isHintReveal = state.phase === 'ROUND_HINT_REVEAL';
@@ -70,8 +71,10 @@ export default function HostRoundResults({ state }: Props) {
     }
     if (reveal.step >= 0 && reveal.step < reveal.shuffledGuesses.length && reveal.step !== lastAnnouncedStep.current) {
       lastAnnouncedStep.current = reveal.step;
-      const guess = reveal.shuffledGuesses[reveal.step];
-      audioManager.enqueue(guessRevealAnnouncement(guess.playerName, guess.word, guess.rank));
+      if (!narratorActive) {
+        const guess = reveal.shuffledGuesses[reveal.step];
+        audioManager.enqueue(guessRevealAnnouncement(guess.playerName, guess.word, guess.rank));
+      }
     }
   }, [isRevealing, reveal.step, reveal.shuffledGuesses]);
 
@@ -80,8 +83,10 @@ export default function HostRoundResults({ state }: Props) {
   useEffect(() => {
     if (reveal.showingAccolades && !announcedAccolades.current && reveal.accolades.length > 0) {
       announcedAccolades.current = true;
-      const pick = reveal.accolades[Math.floor(Math.random() * reveal.accolades.length)];
-      audioManager.enqueue(accoladeAnnouncement(pick));
+      if (!narratorActive) {
+        const pick = reveal.accolades[Math.floor(Math.random() * reveal.accolades.length)];
+        audioManager.enqueue(accoladeAnnouncement(pick));
+      }
     }
     if (!isRevealing) {
       announcedAccolades.current = false;

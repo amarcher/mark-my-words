@@ -11,8 +11,10 @@ import type {
 } from '@mmw/shared';
 import { RoomManager } from './game/RoomManager.js';
 import { registerHandlers } from './socket/handlers.js';
+import narratorRoutes from './api/narratorRoutes.js';
 
 const app = express();
+app.use(express.json());
 const httpServer = createServer(app);
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -38,6 +40,8 @@ const roomManager = new RoomManager({
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
+
+app.use('/api/narrator', narratorRoutes);
 
 registerHandlers(io, roomManager);
 

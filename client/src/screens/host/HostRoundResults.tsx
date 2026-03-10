@@ -6,6 +6,7 @@ import type {
   GuessResult,
   Accolade,
 } from '@mmw/shared';
+import { getRankColor } from '@mmw/shared';
 import RankBadge from '../../components/RankBadge';
 import ProximityBar from '../../components/ProximityBar';
 import AccoladeCard from '../../components/AccoladeCard';
@@ -139,14 +140,45 @@ export default function HostRoundResults({ state, narratorActive = false }: Prop
   if (isRevealing && !reveal.done && !reveal.showingAccolades && reveal.currentGuess) {
     return (
       <>
-        <div className="min-h-screen flex flex-col items-center justify-center p-8 pb-16">
-          <PlayerRevealStep
-            key={reveal.step}
-            guess={reveal.currentGuess}
-            previousGuesses={reveal.previousGuesses}
-            players={state.players}
-            onComplete={reveal.advance}
-          />
+        <div className="min-h-screen flex flex-col items-center p-8 pb-16">
+          <h2 className="text-3xl font-bold text-white/60 mb-6">The Results Are In...</h2>
+          <div className="w-full max-w-3xl space-y-3">
+            {/* Previously revealed cards (static) */}
+            {reveal.previousGuesses.map((guess) => {
+              const pColor = state.players.find(p => p.id === guess.playerId)?.color;
+              const rankColor = getRankColor(guess.rank);
+              return (
+                <div
+                  key={guess.playerId}
+                  className="flex items-center gap-3 px-5 py-3 rounded-xl border border-white/10 bg-bg-card/40 opacity-70"
+                >
+                  <div className="flex items-center gap-2 shrink-0">
+                    {pColor && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: pColor }} />}
+                    <span className="font-semibold text-lg max-w-[8rem] truncate" style={{ color: pColor || 'white' }}>
+                      {guess.playerName}
+                    </span>
+                  </div>
+                  <span className="font-mono text-white/60 text-xl truncate">&ldquo;{guess.word}&rdquo;</span>
+                  <div className="flex-1" />
+                  <span
+                    className="font-mono font-bold text-base rounded-xl px-3 py-1.5"
+                    style={{ color: rankColor, backgroundColor: `${rankColor}15`, border: `2px solid ${rankColor}30` }}
+                  >
+                    #{guess.rank.toLocaleString()}
+                  </span>
+                  <span className="font-mono font-bold text-lg text-accent min-w-[4rem] text-right">+{guess.points}</span>
+                </div>
+              );
+            })}
+
+            {/* Current animating card */}
+            <PlayerRevealStep
+              key={reveal.step}
+              guess={reveal.currentGuess}
+              players={state.players}
+              onComplete={reveal.advance}
+            />
+          </div>
         </div>
         <PhaseProgressBar
           key="revealing"

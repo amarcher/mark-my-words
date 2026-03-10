@@ -3,8 +3,10 @@ import { getRankColor } from '@mmw/shared';
 
 interface OdometerRankProps {
   targetRank: number;
-  duration?: number; // ms, default 2500
+  duration?: number; // ms, default 1500
   onComplete?: () => void;
+  /** Size variant: 'lg' for full-screen, 'sm' for card layout */
+  size?: 'lg' | 'sm';
 }
 
 const START_VALUE = 50000;
@@ -55,7 +57,7 @@ function DigitColumn({ digit, transitioning }: { digit: string; transitioning: b
   );
 }
 
-export default function OdometerRank({ targetRank, duration = 2500, onComplete }: OdometerRankProps) {
+export default function OdometerRank({ targetRank, duration = 1500, onComplete, size = 'lg' }: OdometerRankProps) {
   const [currentValue, setCurrentValue] = useState(START_VALUE);
   const [done, setDone] = useState(false);
   const rafRef = useRef<number | null>(null);
@@ -131,9 +133,11 @@ export default function OdometerRank({ targetRank, duration = 2500, onComplete }
 
   return (
     <div
-      className="inline-flex items-center font-mono font-bold transition-colors duration-300 rounded-2xl px-6 py-3"
+      className={`inline-flex items-center font-mono font-bold transition-colors duration-300 rounded-2xl ${
+        size === 'sm' ? 'px-3 py-1.5' : 'px-6 py-3'
+      }`}
       style={{
-        fontSize: 'clamp(2.5rem, 6vw, 4rem)',
+        fontSize: size === 'sm' ? 'clamp(1.2rem, 2.5vw, 1.6rem)' : 'clamp(2.5rem, 6vw, 4rem)',
         backgroundColor: `${color}15`,
         color: color,
         border: `2px solid ${color}30`,

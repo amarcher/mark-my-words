@@ -1,14 +1,12 @@
 import { Conversation } from '@elevenlabs/client';
-import { loadNarratorGate } from './gate';
 import { formatEvent } from './events';
 import type { NarratorBackend, NarratorGameEvent } from './types';
 
-async function fetchSignedUrl(token: string): Promise<string> {
+async function fetchSignedUrl(): Promise<string> {
   const res = await fetch('/api/narrator/agent-auth', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-gate-token': token,
     },
   });
 
@@ -53,10 +51,7 @@ export class ElevenLabsAgentBackend implements NarratorBackend {
     this.onStateChange?.();
 
     try {
-      const gate = loadNarratorGate();
-      if (!gate) throw new Error('Narrator gate not configured');
-
-      const signedUrl = await fetchSignedUrl(gate.token);
+      const signedUrl = await fetchSignedUrl();
 
       this.conversation = await Conversation.startSession({
         signedUrl,

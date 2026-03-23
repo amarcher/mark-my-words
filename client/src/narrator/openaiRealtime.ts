@@ -1,4 +1,3 @@
-import { loadNarratorGate } from './gate';
 import { formatEvent } from './events';
 import type { NarratorBackend, NarratorGameEvent } from './types';
 
@@ -11,12 +10,11 @@ Rules:
 - Be playful and competitive — celebrate breakthroughs, tease bad guesses
 - Build excitement as the team gets closer to the secret word`;
 
-async function fetchEphemeralToken(token: string): Promise<string> {
+async function fetchEphemeralToken(): Promise<string> {
   const res = await fetch('/api/narrator/openai-agent-auth', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-gate-token': token,
     },
   });
 
@@ -45,7 +43,6 @@ export class OpenAIRealtimeBackend implements NarratorBackend {
   private pendingDuringResponse: NarratorGameEvent[] = [];
   private nextPlayTime = 0;
   private _volume = 1;
-  private gateToken: string | null = null;
 
   get isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
@@ -63,11 +60,7 @@ export class OpenAIRealtimeBackend implements NarratorBackend {
     this.onStateChange?.();
 
     try {
-      const gate = loadNarratorGate();
-      if (!gate) throw new Error('Narrator gate not configured');
-      this.gateToken = gate.token;
-
-      const token = await fetchEphemeralToken(gate.token);
+      const token = await fetchEphemeralToken();
       console.log('[OpenAIRealtime] Got ephemeral token, connecting WebSocket...');
 
       if (!this.audioContext || this.audioContext.state === 'closed') {
@@ -150,7 +143,6 @@ export class OpenAIRealtimeBackend implements NarratorBackend {
     this.pendingDuringResponse = [];
     this.isResponding = false;
     this.nextPlayTime = 0;
-    this.gateToken = null;
   }
 
   sendEvent(event: NarratorGameEvent): void {

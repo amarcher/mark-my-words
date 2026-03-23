@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import { gateMiddleware } from './gateMiddleware.js';
 
 const router = Router();
-router.use(gateMiddleware);
 
 // POST /api/narrator/claude — proxy to Anthropic Messages API
 router.post('/claude', async (req, res) => {

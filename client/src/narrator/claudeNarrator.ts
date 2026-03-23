@@ -1,4 +1,3 @@
-import { loadNarratorGate } from './gate';
 import { formatEvent } from './events';
 import type { NarratorBackend, NarratorGameEvent } from './types';
 
@@ -17,12 +16,11 @@ interface Message {
   content: string;
 }
 
-async function fetchCommentary(messages: Message[], token: string): Promise<string> {
+async function fetchCommentary(messages: Message[]): Promise<string> {
   const res = await fetch('/api/narrator/claude', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-gate-token': token,
     },
     body: JSON.stringify({ messages, systemPrompt: SYSTEM_PROMPT }),
   });
@@ -35,12 +33,11 @@ async function fetchCommentary(messages: Message[], token: string): Promise<stri
   return data.text;
 }
 
-function fetchTTSAudio(text: string, voiceId: string, token: string): Promise<ArrayBuffer> {
+function fetchTTSAudio(text: string, voiceId: string): Promise<ArrayBuffer> {
   return fetch('/api/narrator/tts', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-gate-token': token,
     },
     body: JSON.stringify({ text, voice_id: voiceId }),
   }).then(async (res) => {
@@ -90,7 +87,6 @@ export class ClaudeNarratorBackend implements NarratorBackend {
   private intentionalDisconnect = false;
   private _volume = 1;
   private gainNode: GainNode | null = null;
-  private gateToken: string | null = null;
 
   constructor(options?: ClaudeNarratorOptions) {
     this.ttsEngine = options?.ttsEngine ?? 'elevenlabs';
@@ -122,11 +118,6 @@ export class ClaudeNarratorBackend implements NarratorBackend {
     this.messages = [];
 
     try {
-      const gate = loadNarratorGate();
-      if (!gate) {
-        throw new Error('Claude narrator not configured');
-      }
-      this.gateToken = gate.token;
       if (this.ttsEngine === 'elevenlabs') {
         this.audioContext = new AudioContext();
         this.gainNode = this.audioContext.createGain();
@@ -147,7 +138,6 @@ export class ClaudeNarratorBackend implements NarratorBackend {
     this.messages = [];
     this.eventQueue = [];
     this.processing = false;
-    this.gateToken = null;
     this.clearIdleTimer();
     if (this.currentSource) {
       this.currentSource.stop();
@@ -207,7 +197,7 @@ export class ClaudeNarratorBackend implements NarratorBackend {
     this.messages.push({ role: 'user', content: userText });
 
     try {
-      const commentary = await fetchCommentary(this.messages, this.gateToken!);
+      const commentary = await fetchCommentary(this.messages);
       if (this.intentionalDisconnect) return;
 
       console.log('[ClaudeNarrator] Commentary:', commentary);
@@ -258,7 +248,7 @@ export class ClaudeNarratorBackend implements NarratorBackend {
 
     try {
       const voiceId = this.elevenLabsVoiceId || DEFAULT_VOICE_ID;
-      const audioData = await fetchTTSAudio(text, voiceId, this.gateToken!);
+      const audioData = await fetchTTSAudio(text, voiceId);
       if (this.intentionalDisconnect || !this.audioContext) return;
 
       const audioBuffer = await this.audioContext.decodeAudioData(audioData);

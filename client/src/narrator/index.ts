@@ -14,5 +14,5 @@ export { OpenAIRealtimeBackend } from './openaiRealtime';
 export { ClaudeNarratorBackend } from './claudeNarrator';
 export { createNarratorBackend } from './factory';
 export type { NarratorBackendOptions } from './factory';
-export { loadNarratorGate, isNarratorAvailable, ELEVENLABS_VOICES } from './gate';
-export type { NarratorGate, ElevenLabsVoice } from './gate';
+export { isNarratorAvailable, ELEVENLABS_VOICES } from './gate';
+export type { ElevenLabsVoice } from './gate';

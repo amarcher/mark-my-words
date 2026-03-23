@@ -1,10 +1,3 @@
-const GATE_STORAGE_KEY = 'contexto-elevenlabs';
-
-export interface NarratorGate {
-  enabled: boolean;
-  token: string;
-}
-
 export interface ElevenLabsVoice {
   id: string;
   name: string;
@@ -21,25 +14,6 @@ export const ELEVENLABS_VOICES: ElevenLabsVoice[] = [
   { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', description: 'Emotional, young female' },
 ];
 
-export function loadNarratorGate(): NarratorGate | null {
-  try {
-    const raw = localStorage.getItem(GATE_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (
-      typeof parsed.enabled !== 'boolean' ||
-      typeof parsed.token !== 'string' ||
-      !parsed.enabled ||
-      !parsed.token
-    ) {
-      return null;
-    }
-    return { enabled: parsed.enabled, token: parsed.token };
-  } catch {
-    return null;
-  }
-}
-
 export function isNarratorAvailable(): boolean {
-  return loadNarratorGate() !== null;
+  return true;
 }

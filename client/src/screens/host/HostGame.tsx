@@ -15,7 +15,7 @@ export default function HostGame({ state, game }: Props) {
   const topGuesses = state.guessHistory.slice(0, 30);
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-8">
+    <div className="h-screen flex flex-col items-center p-8 overflow-hidden">
       {/* Round info + Timer */}
       <div className="text-center mb-4">
         <p className="text-white/40 text-sm uppercase tracking-widest mb-2">
@@ -35,7 +35,7 @@ export default function HostGame({ state, game }: Props) {
         <div className="h-full min-h-[300px]">
           <PhysicsWordCloud guesses={topGuesses} teamBest={state.teamBest} paused={state.paused} />
         </div>
-        <div className="overflow-y-auto">
+        <div className="overflow-y-auto min-h-0">
           <GuessHistory guesses={state.guessHistory} players={state.players} />
         </div>
       </div>

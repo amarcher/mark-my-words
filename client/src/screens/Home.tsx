@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import AdBanner from '../components/AdBanner';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -26,6 +27,10 @@ export default function Home() {
           Guess the secret word! Words are ranked by semantic similarity —
           the closer your guess, the lower the rank. Can you find the #1 word?
         </p>
+      </div>
+
+      <div className="mt-8 w-full max-w-2xl">
+        <AdBanner slot="HOME_BOTTOM" />
       </div>
     </div>
   );

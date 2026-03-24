@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import AdBanner from '../../components/AdBanner';
 
 interface Props {
   game: {
@@ -70,6 +71,10 @@ export default function JoinRoom({ game, initialRoomCode }: Props) {
           {joining ? 'Joining...' : 'Join Game'}
         </button>
         {error && <p className="text-rank-red text-sm text-center">{error}</p>}
+      </div>
+
+      <div className="mt-8 w-full max-w-sm">
+        <AdBanner slot="JOIN_ROOM" />
       </div>
     </div>
   );

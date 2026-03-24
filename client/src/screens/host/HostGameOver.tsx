@@ -2,6 +2,7 @@ import type { GameOverState } from '@mmw/shared';
 import Leaderboard from '../../components/Leaderboard';
 import WordConnections from '../../components/WordConnections';
 import GuessHistory from '../../components/GuessHistory';
+import AdBanner from '../../components/AdBanner';
 
 interface Props {
   state: GameOverState;
@@ -63,6 +64,10 @@ export default function HostGameOver({ state, game }: Props) {
       <p className="text-white/40 animate-pulse mt-6">
         Waiting for {leaderName || 'leader'}...
       </p>
+
+      <div className="mt-6 w-full max-w-3xl">
+        <AdBanner slot="HOST_GAME_OVER" format="horizontal" />
+      </div>
     </div>
   );
 }

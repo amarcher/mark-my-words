@@ -14,6 +14,7 @@ import Leaderboard from '../../components/Leaderboard';
 import WordConnections from '../../components/WordConnections';
 import GuessHistory from '../../components/GuessHistory';
 import PlayerRevealStep from '../../components/PlayerRevealStep';
+import AdBanner from '../../components/AdBanner';
 import { useRevealSequence } from '../../hooks/useRevealSequence';
 import { socket } from '../../socket';
 
@@ -135,6 +136,10 @@ export default function PlayerResults({ state, game }: Props) {
             </button>
           </div>
         )}
+
+        <div className="mt-6 w-full max-w-sm">
+          <AdBanner slot="PLAYER_GAME_OVER" />
+        </div>
       </div>
     );
   }

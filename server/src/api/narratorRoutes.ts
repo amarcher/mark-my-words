@@ -1,6 +1,17 @@
 import { Router } from 'express';
+import { neon } from '@neondatabase/serverless';
 
 const router = Router();
+
+function logUsage(service: string, endpoint: string, data: { tokensIn?: number; tokensOut?: number; characters?: number; model?: string }) {
+  const dbUrl = process.env.DASHBOARD_DATABASE_URL;
+  if (!dbUrl) return;
+  const sql = neon(dbUrl);
+  sql`INSERT INTO api_usage (project, service, endpoint, tokens_in, tokens_out, characters, model)
+    VALUES ('mark-my-words', ${service}, ${endpoint}, ${data.tokensIn ?? 0}, ${data.tokensOut ?? 0}, ${data.characters ?? 0}, ${data.model ?? null})`.catch((e) =>
+    console.error(`[narrator/${endpoint}] usage log failed:`, e)
+  );
+}
 
 // POST /api/narrator/claude — proxy to Anthropic Messages API
 router.post('/claude', async (req, res) => {
@@ -33,7 +44,10 @@ router.post('/claude', async (req, res) => {
       return;
     }
 
-    const data = await response.json() as { content: Array<{ text: string }> };
+    const data = await response.json() as { content: Array<{ text: string }>; usage?: { input_tokens: number; output_tokens: number } };
+    if (data.usage) {
+      logUsage('anthropic', 'narrator-claude', { tokensIn: data.usage.input_tokens, tokensOut: data.usage.output_tokens, model: 'claude-sonnet-4-20250514' });
+    }
     const text = data.content?.[0]?.text ?? '';
     res.json({ text });
   } catch (err) {
@@ -72,6 +86,7 @@ router.post('/tts', async (req, res) => {
       return;
     }
 
+    logUsage('elevenlabs', 'narrator-tts', { characters: text.length });
     res.setHeader('Content-Type', 'audio/mpeg');
     const buffer = Buffer.from(await response.arrayBuffer());
     res.send(buffer);

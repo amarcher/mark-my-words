@@ -14,6 +14,7 @@ import Leaderboard from '../../components/Leaderboard';
 import WordConnections from '../../components/WordConnections';
 import GuessHistory from '../../components/GuessHistory';
 import PlayerRevealStep from '../../components/PlayerRevealStep';
+import HostStatusBadge from '../../components/HostStatusBadge';
 import AdBanner from '../../components/AdBanner';
 import { useRevealSequence } from '../../hooks/useRevealSequence';
 import { socket } from '../../socket';
@@ -77,6 +78,11 @@ export default function PlayerResults({ state, game }: Props) {
         <h1 className="text-xl font-bold mb-4 bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">
           Mark My Words
         </h1>
+        {!state.hostConnected && (
+          <div className="mb-3">
+            <HostStatusBadge hostConnected={state.hostConnected} />
+          </div>
+        )}
         <div className="text-center mb-4 animate-scale-in">
           <p className="text-white/40 text-xs uppercase tracking-widest mb-2">The Secret Word Was</p>
           <h1 className="text-4xl font-bold text-accent">{state.secretWord}</h1>

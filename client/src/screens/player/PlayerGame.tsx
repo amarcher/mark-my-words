@@ -7,6 +7,7 @@ import RankBadge from '../../components/RankBadge';
 import ProximityBar from '../../components/ProximityBar';
 import GuessHistory from '../../components/GuessHistory';
 import Leaderboard from '../../components/Leaderboard';
+import HostStatusBadge from '../../components/HostStatusBadge';
 import { socket } from '../../socket';
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
     notifications: string[];
     endGame: () => void;
     requestHint: () => void;
+    resume: () => void;
   };
 }
 
@@ -49,6 +51,11 @@ export default function PlayerGame({ state, game }: Props) {
           totalTime={state.round.totalTime}
           size="sm"
         />
+        {!state.hostConnected && (
+          <div className="mt-2">
+            <HostStatusBadge hostConnected={state.hostConnected} />
+          </div>
+        )}
       </div>
 
       {/* Guess input or result */}
@@ -165,7 +172,12 @@ export default function PlayerGame({ state, game }: Props) {
           <div className="text-center">
             <p className="text-white/50 text-sm uppercase tracking-widest mb-2">No guesses received</p>
             <h2 className="text-5xl font-bold text-amber-400 font-mono mb-2">{state.afkCountdown}</h2>
-            <p className="text-white/40 text-sm">Room closing in {state.afkCountdown}s</p>
+            <p className="text-white/40 text-sm mb-6">Room closing in {state.afkCountdown}s</p>
+            {isLeader && (
+              <button onClick={game.resume} className="btn-primary text-base px-8">
+                Resume
+              </button>
+            )}
           </div>
         </div>
       )}

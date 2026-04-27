@@ -252,10 +252,18 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
     });
 
     socket.on('game:resume', () => {
-      // Host (presenter) only
-      const room = roomManager.getRoomForHost(socket.id);
-      if (!room) return;
-      room.resume();
+      // Host or leader can resume — leader path matters when the host is
+      // offline (their tab closed) or for AFK pause where the host may not
+      // be paying attention.
+      const hostRoom = roomManager.getRoomForHost(socket.id);
+      if (hostRoom) {
+        hostRoom.resume();
+        return;
+      }
+      const playerRoom = roomManager.getRoomForPlayer(socket.id);
+      if (playerRoom && playerRoom.isLeader(socket.id)) {
+        playerRoom.resume();
+      }
     });
 
     socket.on('phase:hold', () => {

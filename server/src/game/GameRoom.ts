@@ -30,6 +30,7 @@ export class GameRoom {
   private phase: GamePhase = 'LOBBY';
   private players: Map<string, Player> = new Map();
   private hostSocketId: string = '';
+  private hostConnected: boolean = false;
   private leaderId: string = '';
   private paused: boolean = false;
   private settings: RoomSettings = {
@@ -114,7 +115,30 @@ export class GameRoom {
 
   // Host management (presenter, not a player)
   setHost(socketId: string): void {
+    const wasConnected = this.hostConnected;
     this.hostSocketId = socketId;
+    this.hostConnected = true;
+    // Broadcast host-back-online so player clients can drop the "Host
+    // offline" badge. Skip during room creation when there's no audience.
+    if (!wasConnected && this.players.size > 0) {
+      this.broadcastState();
+    }
+  }
+
+  /**
+   * Called when the host's socket disconnects. Keeps `hostSocketId` (so a
+   * reconnect via token can rebind), but marks the host as offline. If the
+   * room is paused outside of an AFK countdown, auto-resume — pause/resume
+   * is host-only by default, so otherwise the game would be stranded.
+   */
+  markHostDisconnected(): void {
+    if (!this.hostConnected) return;
+    this.hostConnected = false;
+    if (this.paused && this.afkCountdown === null) {
+      this.resume(); // broadcasts state
+      return;
+    }
+    this.broadcastState();
   }
 
   getHostSocketId(): string {
@@ -123,6 +147,10 @@ export class GameRoom {
 
   isHost(socketId: string): boolean {
     return socketId === this.hostSocketId;
+  }
+
+  isHostConnected(): boolean {
+    return this.hostConnected;
   }
 
   // Leader management
@@ -778,6 +806,7 @@ export class GameRoom {
       roomCode: this.roomCode,
       players,
       hostId: this.hostSocketId,
+      hostConnected: this.hostConnected,
       leaderId: this.leaderId,
       paused: this.paused,
       afkCountdown: this.afkCountdown,

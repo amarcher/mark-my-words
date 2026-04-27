@@ -41,6 +41,27 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Pagehide / sendBeacon target. Browsers fire pagehide synchronously when the
+// tab is closing — sockets may not flush their last frame, so we accept a
+// best-effort beacon keyed by the player's reconnect token. Express parses
+// the application/json body (Blob from sendBeacon).
+app.post('/api/player/disconnect', (req, res) => {
+  const body = req.body as { reconnectToken?: unknown };
+  const token = typeof body?.reconnectToken === 'string' ? body.reconnectToken : null;
+  if (!token) {
+    res.status(204).end();
+    return;
+  }
+  const result = roomManager.handleDisconnectByToken(token);
+  if (result) {
+    io.to(result.roomCode).emit('player:disconnected', {
+      playerId: result.playerId,
+      playerName: result.playerName,
+    });
+  }
+  res.status(204).end();
+});
+
 app.use('/api/narrator', narratorRoutes);
 
 registerHandlers(io, roomManager);

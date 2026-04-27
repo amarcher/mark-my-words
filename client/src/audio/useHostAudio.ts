@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { audioManager } from './AudioManager';
 import type { TTSSettings } from './AudioManager';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import {
   roundStartAnnouncement,
   roundEndAnnouncement,
@@ -179,6 +180,17 @@ export function useHostAudio(gameState: GameState | null) {
     if (!gameState) return;
     audioManager.setPaused(gameState.paused);
   }, [gameState?.paused]);
+
+  // Tab visibility — pause music when hidden so we don't keep pulling network
+  // /cpu in the background. Resumes only if the game isn't otherwise paused.
+  const isVisible = usePageVisibility();
+  useEffect(() => {
+    if (!isVisible) {
+      audioManager.pauseMusicForBackground();
+    } else if (gameState && !gameState.paused) {
+      audioManager.resumeMusicFromBackground();
+    }
+  }, [isVisible, gameState?.paused]);
 
   // Socket event listeners for real-time events (skip when narrator active)
   useEffect(() => {

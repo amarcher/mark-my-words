@@ -302,4 +302,23 @@ export class OpenAIRealtimeBackend implements NarratorBackend {
       this.idleTimer = null;
     }
   }
+
+  pauseForBackground(): void {
+    // Pause the wall-clock idle timer — browsers don't throttle setTimeout
+    // in background, so without this we'd silently drop the WS after 30s.
+    this.clearIdleTimer();
+    if (this.audioContext && this.audioContext.state === 'running') {
+      this.audioContext.suspend().catch(() => {});
+    }
+    // Reset the audio scheduling cursor so chunks that arrived while hidden
+    // don't blast at once on resume.
+    this.nextPlayTime = 0;
+  }
+
+  resumeFromBackground(): void {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+    if (this.isConnected) this.resetIdleTimer();
+  }
 }

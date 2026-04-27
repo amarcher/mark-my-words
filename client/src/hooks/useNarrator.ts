@@ -13,6 +13,7 @@ import {
   buildGameOverEvent,
 } from '../narrator/events';
 import type { ClaudeNarratorBackend } from '../narrator/claudeNarrator';
+import { usePageVisibility } from './usePageVisibility';
 
 function getZoneLabel(teamBest: number): string {
   if (teamBest <= 1) return RANK_ZONES.WIN.label;
@@ -49,6 +50,16 @@ export function useNarrator(
   const prevTeamBestZoneRef = useRef<string | null>(null);
   const prevEngineRef = useRef<NarratorEngine>(null);
   const gameOverSentRef = useRef(false);
+  const isVisible = usePageVisibility();
+
+  // When the tab is backgrounded, suspend the AudioContext, drop pending audio,
+  // and clear the 30s wall-clock idle timer so the WS doesn't silently drop.
+  useEffect(() => {
+    const backend = backendRef.current;
+    if (!backend) return;
+    if (isVisible) backend.resumeFromBackground();
+    else backend.pauseForBackground();
+  }, [isVisible]);
 
   const updateState = useCallback(() => {
     const backend = backendRef.current;

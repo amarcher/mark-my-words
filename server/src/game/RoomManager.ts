@@ -154,11 +154,11 @@ export class RoomManager {
     // Check if it's a host disconnecting
     const hostRoomCode = this.hostToRoom.get(playerId);
     if (hostRoomCode) {
-      // Host presenter disconnected — drop the mapping but keep the room.
-      // Mark the host as offline (auto-resumes if paused outside AFK so
-      // pause/resume doesn't strand the room).
+      // Host presenter disconnected — keep the mapping so reconnect via
+      // token can find the room. (Cleared on rekey in handleHostReconnect
+      // or in destroyRoom.) Mark the host as offline; auto-resumes if
+      // paused outside AFK so pause/resume doesn't strand the room.
       const room = this.rooms.get(hostRoomCode);
-      this.hostToRoom.delete(playerId);
       room?.markHostDisconnected();
       return;
     }
@@ -221,11 +221,22 @@ export class RoomManager {
     this.tokenToHostId.set(token, hostId);
   }
 
+  /** Returns the socket id currently keyed to this player token, if any. */
+  peekTokenPlayerId(token: string): string | undefined {
+    return this.tokenToPlayerId.get(token);
+  }
+
+  /** Returns the socket id currently keyed to this host token, if any. */
+  peekTokenHostId(token: string): string | undefined {
+    return this.tokenToHostId.get(token);
+  }
+
   handleReconnect(
     token: string,
     newSocketId: string,
-    roomCode: string
-  ): { room: GameRoom; playerName: string } | undefined {
+    roomCode: string,
+    options: { force?: boolean } = {}
+  ): { room: GameRoom; playerName: string } | { error: 'token_in_use'; activeSocketId: string } | undefined {
     const oldPlayerId = this.tokenToPlayerId.get(token);
     if (!oldPlayerId) return undefined;
 
@@ -237,6 +248,13 @@ export class RoomManager {
 
     const player = room.getPlayer(oldPlayerId);
     if (!player) return undefined;
+
+    // Multi-tab guard: if another live socket is already keyed to this player
+    // (different id, marked connected), refuse the rekey unless the caller
+    // explicitly opted to take over. Avoids silently orphaning the first tab.
+    if (!options.force && oldPlayerId !== newSocketId && player.connected) {
+      return { error: 'token_in_use', activeSocketId: oldPlayerId };
+    }
 
     const playerName = player.name;
 
@@ -255,8 +273,9 @@ export class RoomManager {
   handleHostReconnect(
     token: string,
     newSocketId: string,
-    roomCode: string
-  ): GameRoom | undefined {
+    roomCode: string,
+    options: { force?: boolean } = {}
+  ): GameRoom | { error: 'token_in_use'; activeSocketId: string } | undefined {
     const oldHostId = this.tokenToHostId.get(token);
     if (!oldHostId) return undefined;
 
@@ -265,6 +284,10 @@ export class RoomManager {
 
     const room = this.rooms.get(storedRoomCode);
     if (!room) return undefined;
+
+    if (!options.force && oldHostId !== newSocketId && room.isHostConnected()) {
+      return { error: 'token_in_use', activeSocketId: oldHostId };
+    }
 
     // Re-key host
     if (oldHostId !== newSocketId) {

@@ -72,9 +72,15 @@ function getSavedSession() {
   return { roomCode, playerName: playerName || '', isHost };
 }
 
+export interface SessionConflict {
+  roomCode: string;
+  playerName: string;
+}
+
 export function useSocket() {
   const [connected, setConnected] = useState(socket.connected);
   const [reconnecting, setReconnecting] = useState(false);
+  const [sessionConflict, setSessionConflict] = useState<SessionConflict | null>(null);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
@@ -91,10 +97,15 @@ export function useSocket() {
           { roomCode: session.roomCode, playerName: session.playerName },
           (res) => {
             setReconnecting(false);
-            if (!res.success) {
-              // Stale session — clear it so user sees JoinRoom/CreateRoom
-              clearSession();
+            if (res.success) return;
+            if (res.error === 'token_in_use') {
+              // Another tab owns this slot. Surface a modal so the user can
+              // explicitly take over here or bail to home.
+              setSessionConflict({ roomCode: session.roomCode, playerName: session.playerName });
+              return;
             }
+            // Stale session — clear it so user sees JoinRoom/CreateRoom
+            clearSession();
           }
         );
       }
@@ -110,7 +121,30 @@ export function useSocket() {
     };
   }, []);
 
-  return { socket, connected, reconnecting };
+  const acceptSessionTakeover = useCallback(() => {
+    const conflict = sessionConflict;
+    if (!conflict) return;
+    setReconnecting(true);
+    socket.emit(
+      'room:steal-session',
+      { roomCode: conflict.roomCode, playerName: conflict.playerName },
+      (res) => {
+        setReconnecting(false);
+        setSessionConflict(null);
+        if (!res.success) {
+          // Couldn't take over (e.g. room gone) — fall back to clean state
+          clearSession();
+        }
+      },
+    );
+  }, [sessionConflict]);
+
+  const cancelSessionTakeover = useCallback(() => {
+    clearSession();
+    setSessionConflict(null);
+  }, []);
+
+  return { socket, connected, reconnecting, sessionConflict, acceptSessionTakeover, cancelSessionTakeover };
 }
 
 export function useGameState() {

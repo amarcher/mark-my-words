@@ -5,11 +5,22 @@ import PlayerLobby from './PlayerLobby';
 import PlayerGame from './PlayerGame';
 import PlayerResults from './PlayerResults';
 import RoomClosedModal from '../../components/RoomClosedModal';
+import SessionConflictModal from '../../components/SessionConflictModal';
 
 export default function PlayerScreen() {
   const { roomCode: urlRoomCode } = useParams();
-  const { connected, reconnecting } = useSocket();
+  const { connected, reconnecting, sessionConflict, acceptSessionTakeover, cancelSessionTakeover } = useSocket();
   const game = useGameState();
+
+  if (sessionConflict) {
+    return (
+      <SessionConflictModal
+        roomCode={sessionConflict.roomCode}
+        onTakeOver={acceptSessionTakeover}
+        onCancel={cancelSessionTakeover}
+      />
+    );
+  }
 
   if (!connected) {
     return (

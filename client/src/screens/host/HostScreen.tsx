@@ -7,13 +7,14 @@ import HostRoundResults from './HostRoundResults';
 import HostGameOver from './HostGameOver';
 import PauseOverlay from '../../components/PauseOverlay';
 import RoomClosedModal from '../../components/RoomClosedModal';
+import SessionConflictModal from '../../components/SessionConflictModal';
 import { useHostAudio } from '../../audio/useHostAudio';
 import AudioControls from '../../audio/AudioControls';
 import TTSSettingsModal from '../../audio/TTSSettingsModal';
 import { useNarrator } from '../../hooks/useNarrator';
 
 export default function HostScreen() {
-  const { connected, reconnecting } = useSocket();
+  const { connected, reconnecting, sessionConflict, acceptSessionTakeover, cancelSessionTakeover } = useSocket();
   const game = useGameState();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
@@ -44,6 +45,16 @@ export default function HostScreen() {
       setError(result.error || 'Failed to create room');
     }
   };
+
+  if (sessionConflict) {
+    return (
+      <SessionConflictModal
+        roomCode={sessionConflict.roomCode}
+        onTakeOver={acceptSessionTakeover}
+        onCancel={cancelSessionTakeover}
+      />
+    );
+  }
 
   if (!connected) {
     return (

@@ -27,6 +27,15 @@ export interface ClientToServerEvents {
     data: { roomCode: string; playerName: string },
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
+  /**
+   * Forced reconnect — used when the user resolves a `token_in_use` modal
+   * by choosing to take over the session here. Server kicks the existing
+   * socket and rekeys this one to the player slot.
+   */
+  'room:steal-session': (
+    data: { roomCode: string; playerName: string },
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
 }
 
 // Server → Client events

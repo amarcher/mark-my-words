@@ -216,10 +216,14 @@ describe('RoomManager', () => {
       expect(room.getPlayer('p1')?.connected).toBe(false);
     });
 
-    it('cleans up host mapping on host disconnect', () => {
+    it('keeps host mapping on host disconnect so reconnect can find the room', () => {
       const code = manager.createRoom('host-1');
       manager.handleDisconnect('host-1');
-      expect(manager.getRoomCodeForHost('host-1')).toBeUndefined();
+      // Mapping preserved — reconnect via token relies on it. The room
+      // tracks hostConnected=false so events from this stale id are gated
+      // by the actual host socket coming back online via reconnect.
+      expect(manager.getRoomCodeForHost('host-1')).toBe(code);
+      expect(manager.getRoom(code)?.isHostConnected()).toBe(false);
     });
 
     it('no-op for unknown socket', () => {
@@ -234,10 +238,11 @@ describe('RoomManager', () => {
       manager.joinRoom(code, 'old-socket', 'Alice');
       manager.joinRoom(code, 'p2', 'Bob');
       manager.registerToken('my-token', 'old-socket');
+      manager.getRoom(code)!.setPlayerConnected('old-socket', false);
 
       const result = manager.handleReconnect('my-token', 'new-socket', code);
       expect(result).toBeDefined();
-      expect(result?.playerName).toBe('Alice');
+      expect(result && 'playerName' in result ? result.playerName : null).toBe('Alice');
     });
 
     it('updates player-to-room mapping on reconnect', () => {
@@ -245,10 +250,39 @@ describe('RoomManager', () => {
       manager.joinRoom(code, 'old-socket', 'Alice');
       manager.joinRoom(code, 'p2', 'Bob');
       manager.registerToken('my-token', 'old-socket');
+      manager.getRoom(code)!.setPlayerConnected('old-socket', false);
 
       manager.handleReconnect('my-token', 'new-socket', code);
       expect(manager.getRoomCodeForPlayer('new-socket')).toBe(code);
       expect(manager.getRoomCodeForPlayer('old-socket')).toBeUndefined();
+    });
+
+    it('refuses reconnect when token already in use by a connected socket', () => {
+      const code = manager.createRoom('host-1');
+      manager.joinRoom(code, 'tab-a', 'Alice');
+      manager.joinRoom(code, 'p2', 'Bob');
+      manager.registerToken('shared-token', 'tab-a');
+      // tab-a is still connected — second tab tries to reconnect with the same token
+
+      const result = manager.handleReconnect('shared-token', 'tab-b', code);
+      expect(result && 'error' in result ? result.error : null).toBe('token_in_use');
+      // Tab A still owns the slot
+      const room = manager.getRoom(code)!;
+      expect(room.hasPlayer('tab-a')).toBe(true);
+      expect(room.hasPlayer('tab-b')).toBe(false);
+    });
+
+    it('force-reconnect takes over a still-connected slot', () => {
+      const code = manager.createRoom('host-1');
+      manager.joinRoom(code, 'tab-a', 'Alice');
+      manager.joinRoom(code, 'p2', 'Bob');
+      manager.registerToken('shared-token', 'tab-a');
+
+      const result = manager.handleReconnect('shared-token', 'tab-b', code, { force: true });
+      expect(result && 'playerName' in result ? result.playerName : null).toBe('Alice');
+      const room = manager.getRoom(code)!;
+      expect(room.hasPlayer('tab-a')).toBe(false);
+      expect(room.hasPlayer('tab-b')).toBe(true);
     });
 
     it('marks player as connected after reconnect', () => {
@@ -283,8 +317,10 @@ describe('RoomManager', () => {
     it('handleHostReconnect re-keys host', () => {
       const code = manager.createRoom('old-host');
       manager.registerHostToken('host-token', 'old-host');
+      manager.handleDisconnect('old-host');
 
-      const room = manager.handleHostReconnect('host-token', 'new-host', code);
+      const result = manager.handleHostReconnect('host-token', 'new-host', code);
+      const room = result && !('error' in result) ? result : undefined;
       expect(room).toBeDefined();
       expect(room?.getHostSocketId()).toBe('new-host');
     });
@@ -292,10 +328,20 @@ describe('RoomManager', () => {
     it('handleHostReconnect updates host-to-room mapping', () => {
       const code = manager.createRoom('old-host');
       manager.registerHostToken('host-token', 'old-host');
+      manager.handleDisconnect('old-host');
 
       manager.handleHostReconnect('host-token', 'new-host', code);
       expect(manager.getRoomCodeForHost('new-host')).toBe(code);
       expect(manager.getRoomCodeForHost('old-host')).toBeUndefined();
+    });
+
+    it('handleHostReconnect refuses when host token in use', () => {
+      const code = manager.createRoom('old-host');
+      manager.registerHostToken('host-token', 'old-host');
+      // Old host still connected — second host tab tries to reconnect
+
+      const result = manager.handleHostReconnect('host-token', 'new-host', code);
+      expect(result && 'error' in result ? result.error : null).toBe('token_in_use');
     });
 
     it('handleHostReconnect returns undefined for bad token', () => {

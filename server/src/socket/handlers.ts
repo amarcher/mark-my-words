@@ -112,45 +112,11 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
     });
 
     socket.on('room:reconnect', (data, callback) => {
-      const { roomCode, playerName } = data;
-      if (!reconnectToken) {
-        callback({ success: false, error: 'No reconnect token' });
-        return;
-      }
+      handleReconnectAttempt(io, roomManager, socket, reconnectToken, data, callback, false);
+    });
 
-      // Try player reconnect first
-      const playerResult = roomManager.handleReconnect(reconnectToken, socket.id, roomCode);
-      if (playerResult) {
-        socket.join(roomCode.toUpperCase());
-        socket.data.playerId = socket.id;
-        socket.data.playerName = playerResult.playerName;
-        socket.data.roomCode = roomCode.toUpperCase();
-
-        // Notify others
-        socket.to(roomCode.toUpperCase()).emit('player:reconnected', {
-          playerId: socket.id,
-          playerName: playerResult.playerName,
-        });
-
-        // Push fresh state
-        socket.emit('game:state', playerResult.room.getState());
-        callback({ success: true });
-        return;
-      }
-
-      // Try host reconnect
-      const hostRoom = roomManager.handleHostReconnect(reconnectToken, socket.id, roomCode);
-      if (hostRoom) {
-        socket.join(roomCode.toUpperCase());
-        socket.data.roomCode = roomCode.toUpperCase();
-
-        // Push fresh state
-        socket.emit('game:state', hostRoom.getState());
-        callback({ success: true });
-        return;
-      }
-
-      callback({ success: false, error: 'Could not reconnect' });
+    socket.on('room:steal-session', (data, callback) => {
+      handleReconnectAttempt(io, roomManager, socket, reconnectToken, data, callback, true);
     });
 
     socket.on('room:kick', (data) => {
@@ -300,4 +266,96 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
 
 function findSocketById(io: TypedServer, socketId: string): TypedSocket | undefined {
   return io.sockets.sockets.get(socketId) as TypedSocket | undefined;
+}
+
+/**
+ * Shared reconnect path used by both `room:reconnect` (soft) and
+ * `room:steal-session` (forced). The forced variant kicks the prior socket
+ * after the user explicitly confirmed they want to take over.
+ *
+ * We also auto-force when the prior socket id is no longer in the live
+ * sockets map — that's a legit refresh, not a multi-tab race, and the user
+ * shouldn't see a "token in use" modal for it.
+ */
+function handleReconnectAttempt(
+  io: TypedServer,
+  roomManager: RoomManager,
+  socket: TypedSocket,
+  reconnectToken: string | undefined,
+  data: { roomCode: string; playerName: string },
+  callback: (res: { success: boolean; error?: string }) => void,
+  steal: boolean,
+): void {
+  const { roomCode } = data;
+  if (!reconnectToken) {
+    callback({ success: false, error: 'No reconnect token' });
+    return;
+  }
+
+  // Player branch
+  const oldPlayerId = roomManager.peekTokenPlayerId(reconnectToken);
+  if (oldPlayerId) {
+    // Auto-force if the prior socket id is dead — covers refresh races where
+    // disconnect hasn't fired yet but the old socket is already gone.
+    const priorAlive = oldPlayerId !== socket.id && io.sockets.sockets.has(oldPlayerId);
+    const force = steal || !priorAlive;
+
+    if (steal && priorAlive) {
+      const oldSocket = findSocketById(io, oldPlayerId);
+      if (oldSocket) {
+        oldSocket.emit('room:error', { message: 'You opened this room in another tab' });
+        oldSocket.disconnect(true);
+      }
+    }
+
+    const playerResult = roomManager.handleReconnect(reconnectToken, socket.id, roomCode, { force });
+    if (playerResult && 'error' in playerResult) {
+      callback({ success: false, error: playerResult.error });
+      return;
+    }
+    if (playerResult) {
+      socket.join(roomCode.toUpperCase());
+      socket.data.playerId = socket.id;
+      socket.data.playerName = playerResult.playerName;
+      socket.data.roomCode = roomCode.toUpperCase();
+
+      socket.to(roomCode.toUpperCase()).emit('player:reconnected', {
+        playerId: socket.id,
+        playerName: playerResult.playerName,
+      });
+      socket.emit('game:state', playerResult.room.getState());
+      callback({ success: true });
+      return;
+    }
+  }
+
+  // Host branch
+  const oldHostId = roomManager.peekTokenHostId(reconnectToken);
+  if (oldHostId) {
+    const priorAlive = oldHostId !== socket.id && io.sockets.sockets.has(oldHostId);
+    const force = steal || !priorAlive;
+
+    if (steal && priorAlive) {
+      const oldSocket = findSocketById(io, oldHostId);
+      if (oldSocket) {
+        oldSocket.emit('room:error', { message: 'You opened this room in another tab' });
+        oldSocket.disconnect(true);
+      }
+    }
+
+    const hostResult = roomManager.handleHostReconnect(reconnectToken, socket.id, roomCode, { force });
+    if (hostResult && 'error' in hostResult) {
+      callback({ success: false, error: hostResult.error });
+      return;
+    }
+    if (hostResult) {
+      socket.join(roomCode.toUpperCase());
+      socket.data.roomCode = roomCode.toUpperCase();
+      socket.emit('game:state', hostResult.getState());
+      callback({ success: true });
+      return;
+    }
+  }
+
+  callback({ success: false, error: 'Could not reconnect' });
 }

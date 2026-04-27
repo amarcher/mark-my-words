@@ -108,12 +108,16 @@ export default function HostRoundResults({ state, narratorActive = false }: Prop
     };
   }, [reveal.showingAccolades, reveal.advance, reveal.accolades.length]);
 
-  // Release phase hold when entire reveal sequence is done
+  // Release phase hold when entire reveal sequence is done. The 50ms delay
+  // gives the WebSocket frame a chance to flush before the tab can be
+  // backgrounded — without it, a hidden host TV would let the server's
+  // 90s MAX_HOLD safety timer expire instead of advancing immediately.
   const releasedRef = useRef(false);
   useEffect(() => {
     if (reveal.done && isRevealing && !releasedRef.current) {
       releasedRef.current = true;
-      socket.emit('phase:release');
+      const t = setTimeout(() => socket.emit('phase:release'), 50);
+      return () => clearTimeout(t);
     }
     if (!isRevealing) {
       releasedRef.current = false;

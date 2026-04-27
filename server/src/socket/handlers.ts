@@ -100,7 +100,11 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
       if (!roomCode) return;
 
       const room = roomManager.getRoom(roomCode);
-      if (!room || (!room.isHost(socket.id) && !room.isLeader(socket.id))) return;
+      if (!room) return;
+      if (!room.isHost(socket.id) && !room.isLeader(socket.id)) {
+        socket.emit('room:error', { message: 'Only the host or leader can close the room' });
+        return;
+      }
 
       socket.leave(roomCode);
       socket.data.roomCode = undefined as unknown as string;
@@ -211,6 +215,10 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
       const playerRoom = roomManager.getRoomForPlayer(socket.id);
       if (playerRoom && playerRoom.isLeader(socket.id)) {
         playerRoom.endGame();
+        return;
+      }
+      if (playerRoom) {
+        socket.emit('room:error', { message: 'Only the host or leader can end the game' });
       }
     });
 
@@ -262,17 +270,21 @@ export function registerHandlers(io: TypedServer, roomManager: RoomManager): voi
       room.releasePhase();
     });
 
-    socket.on('disconnect', () => {
-      console.log(`Client disconnected: ${socket.id}`);
+    // 'disconnecting' fires while the socket is still in its rooms — the
+    // broadcast actually flushes here, unlike in 'disconnect' where the
+    // socket is already closed.
+    socket.on('disconnecting', () => {
       const roomCode = socket.data.roomCode;
-
       if (roomCode) {
         socket.to(roomCode).emit('player:disconnected', {
           playerId: socket.id,
           playerName: socket.data.playerName || 'Unknown',
         });
       }
+    });
 
+    socket.on('disconnect', () => {
+      console.log(`Client disconnected: ${socket.id}`);
       roomManager.handleDisconnect(socket.id);
     });
   });

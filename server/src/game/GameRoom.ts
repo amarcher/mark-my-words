@@ -157,14 +157,40 @@ export class GameRoom {
     this.players.delete(id);
     this.scores.delete(id);
 
-    // If leader left, promote next player
-    if (id === this.leaderId && this.players.size > 0) {
-      const newLeader = this.players.values().next().value!;
-      this.leaderId = newLeader.id;
+    // If leader left, promote the next connected player (fallback to first if none)
+    if (id === this.leaderId) {
+      this.leaderId = this.pickNextLeaderId() ?? '';
     }
 
     this.touch();
     this.broadcastState();
+  }
+
+  /**
+   * If the given disconnected player is the current leader, promote the next
+   * connected player. Returns true if the leader changed.
+   */
+  promoteNextLeaderIfDisconnected(disconnectedId: string): boolean {
+    if (disconnectedId !== this.leaderId) return false;
+    const next = this.pickNextLeaderId({ excludeId: disconnectedId, requireConnected: true });
+    if (!next || next === this.leaderId) return false;
+    this.leaderId = next;
+    this.touch();
+    this.broadcastState();
+    return true;
+  }
+
+  private pickNextLeaderId(opts?: { excludeId?: string; requireConnected?: boolean }): string | undefined {
+    const excludeId = opts?.excludeId;
+    const requireConnected = opts?.requireConnected ?? false;
+    // Insertion-order iteration; prefer connected players first
+    let firstFallback: string | undefined;
+    for (const p of this.players.values()) {
+      if (p.id === excludeId) continue;
+      if (p.connected) return p.id;
+      if (firstFallback === undefined) firstFallback = p.id;
+    }
+    return requireConnected ? undefined : firstFallback;
   }
 
   setPlayerConnected(id: string, connected: boolean): void {
@@ -734,6 +760,9 @@ export class GameRoom {
     this.clearTimer();
     this.clearPhaseTimer();
     this.paused = false;
+    this.afkCountdown = null;
+    this.previousPositions.clear();
+    this.colorIndex = 0;
     this.usedHintWords.clear();
     this.hintVotes.clear();
     this.hintApproved = false;
@@ -754,11 +783,12 @@ export class GameRoom {
       afkCountdown: this.afkCountdown,
       guessHistory: this.getSortedHistory(),
       teamBest: this.teamBest,
+      settings: { ...this.settings },
     };
 
     switch (this.phase) {
       case 'LOBBY':
-        return { ...base, phase: 'LOBBY', settings: { ...this.settings } };
+        return { ...base, phase: 'LOBBY' };
 
       case 'ROUND_ACTIVE': {
         const activeState: GameState = {
@@ -797,6 +827,7 @@ export class GameRoom {
           scoreboard: this.getScoreboard(),
           phaseTimeRemaining: this.phaseTimeRemaining,
           phaseTotalTime: this.phaseTotalTime,
+          hostHold: this.hostHold,
           hintAvailable: this.isHintAvailable(),
           hintMode: this.settings.hintMode,
           hintApproved: this.hintApproved,
@@ -822,6 +853,7 @@ export class GameRoom {
           scoreboard: this.getScoreboard(),
           phaseTimeRemaining: this.phaseTimeRemaining,
           phaseTotalTime: this.phaseTotalTime,
+          hostHold: this.hostHold,
         };
 
       case 'ROUND_SCOREBOARD':
@@ -832,6 +864,7 @@ export class GameRoom {
           scoreboard: this.getScoreboard(),
           phaseTimeRemaining: this.phaseTimeRemaining,
           phaseTotalTime: this.phaseTotalTime,
+          hostHold: this.hostHold,
         };
 
       case 'GAME_OVER': {

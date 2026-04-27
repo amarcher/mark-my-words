@@ -85,11 +85,11 @@ interface BaseState {
   afkCountdown: number | null;
   guessHistory: GuessResult[];
   teamBest: number;
+  settings: RoomSettings;
 }
 
 export interface LobbyState extends BaseState {
   phase: 'LOBBY';
-  settings: RoomSettings;
 }
 
 export interface RoundActiveState extends BaseState {
@@ -110,6 +110,7 @@ export interface RoundRevealingState extends BaseState {
   scoreboard: ScoreEntry[];
   phaseTimeRemaining: number;
   phaseTotalTime: number;
+  hostHold: boolean;
   hintAvailable: boolean;
   hintMode: HintMode;
   hintApproved?: boolean;
@@ -125,6 +126,7 @@ export interface RoundHintRevealState extends BaseState {
   scoreboard: ScoreEntry[];
   phaseTimeRemaining: number;
   phaseTotalTime: number;
+  hostHold: boolean;
 }
 
 export interface RoundScoreboardState extends BaseState {
@@ -133,6 +135,7 @@ export interface RoundScoreboardState extends BaseState {
   scoreboard: ScoreEntry[];
   phaseTimeRemaining: number;
   phaseTotalTime: number;
+  hostHold: boolean;
 }
 
 export interface GameOverState extends BaseState {

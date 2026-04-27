@@ -286,4 +286,18 @@ export class ClaudeNarratorBackend implements NarratorBackend {
       this.idleTimer = null;
     }
   }
+
+  pauseForBackground(): void {
+    this.clearIdleTimer();
+    if (this.audioContext && this.audioContext.state === 'running') {
+      this.audioContext.suspend().catch(() => {});
+    }
+  }
+
+  resumeFromBackground(): void {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+    if (this._isConnected) this.resetIdleTimer();
+  }
 }

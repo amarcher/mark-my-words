@@ -181,4 +181,15 @@ export class ElevenLabsAgentBackend implements NarratorBackend {
     }
     this.hasPendingEvents = false;
   }
+
+  pauseForBackground(): void {
+    // The Conversation SDK manages its own AudioContext internally — we just
+    // need to pause our wall-clock idle timer so the WS doesn't drop after
+    // 30s of background.
+    this.clearIdleTimer();
+  }
+
+  resumeFromBackground(): void {
+    if (this.isConnected) this.resetIdleTimer();
+  }
 }

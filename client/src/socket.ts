@@ -32,6 +32,25 @@ const socket: TypedSocket = io(
 
 export { socket };
 
+// Pagehide beacon: tabs that close abruptly never flush their socket frames,
+// so we synchronously POST a self-disconnect keyed by the reconnect token.
+// Use pagehide rather than beforeunload — pagehide is reliable on mobile
+// Safari and bfcache-aware. The endpoint is idempotent.
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    const roomCode = sessionStorage.getItem('roomCode');
+    const reconnectToken = sessionStorage.getItem('reconnectToken');
+    if (!roomCode || !reconnectToken) return;
+    const body = new Blob(
+      [JSON.stringify({ reconnectToken, roomCode })],
+      { type: 'application/json' },
+    );
+    // sendBeacon may return false if the browser refuses (rare); we have no
+    // recourse since the page is dying. Best-effort is the contract.
+    navigator.sendBeacon('/api/player/disconnect', body);
+  });
+}
+
 // Session storage helpers
 function saveSession(data: { roomCode: string; playerName?: string; isHost?: boolean }) {
   sessionStorage.setItem('roomCode', data.roomCode);
@@ -101,6 +120,7 @@ export function useGameState() {
   const [notifications, setNotifications] = useState<string[]>([]);
   const [roomClosedMessage, setRoomClosedMessage] = useState<string | null>(null);
   const leftRoomRef = useRef(false);
+  const prevLeaderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const onState = (state: GameState) => {
@@ -109,6 +129,22 @@ export function useGameState() {
       if (state.phase === 'ROUND_ACTIVE') {
         setTimeRemaining(state.round.timeRemaining);
       }
+      // Leader-change toast — surfaces auto-promotion and reconnect-reclaim,
+      // both of which are otherwise silent. Skip the very first state seen
+      // (initial leaderId, not a change).
+      const prevLeader = prevLeaderIdRef.current;
+      if (prevLeader !== null && state.leaderId && prevLeader !== state.leaderId) {
+        const isMe = state.leaderId === socket.id;
+        const newLeaderName = state.players.find(p => p.id === state.leaderId)?.name;
+        const msg = isMe
+          ? "You're now leading!"
+          : newLeaderName
+            ? `${newLeaderName} is now leading`
+            : 'A new leader was promoted';
+        setNotifications(prev => [...prev, msg]);
+        setTimeout(() => setNotifications(prev => prev.slice(1)), 4000);
+      }
+      prevLeaderIdRef.current = state.leaderId;
     };
 
     const onTimer = (data: { timeRemaining: number }) => {
@@ -139,6 +175,25 @@ export function useGameState() {
     const onPlayerReconnected = (data: { playerId: string; playerName: string }) => {
       setNotifications(prev => [...prev, `${data.playerName} reconnected`]);
       setTimeout(() => setNotifications(prev => prev.slice(1)), 3000);
+      // Mirror server's connected flag immediately so the roster doesn't lag
+      // behind the next game:state broadcast.
+      setGameState(prev => prev && {
+        ...prev,
+        players: prev.players.map(p =>
+          p.id === data.playerId ? { ...p, connected: true } : p,
+        ),
+      });
+    };
+
+    const onPlayerDisconnected = (data: { playerId: string }) => {
+      // Update connected=false instantly. game:state will follow but may be
+      // delayed by phase timer ticks.
+      setGameState(prev => prev && {
+        ...prev,
+        players: prev.players.map(p =>
+          p.id === data.playerId ? { ...p, connected: false } : p,
+        ),
+      });
     };
 
     const onError = (data: { message: string }) => {
@@ -149,6 +204,7 @@ export function useGameState() {
     const onRoomClosed = (data: { message: string }) => {
       setGameState(null);
       setLastGuessResult(null);
+      prevLeaderIdRef.current = null;
       clearSession();
       setRoomClosedMessage(data.message);
     };
@@ -164,6 +220,7 @@ export function useGameState() {
     socket.on('round:player-submitted', onPlayerSubmitted);
     socket.on('player:joined', onPlayerJoined);
     socket.on('player:left', onPlayerLeft);
+    socket.on('player:disconnected', onPlayerDisconnected);
     socket.on('player:reconnected', onPlayerReconnected);
     socket.on('room:error', onError);
     socket.on('room:closed', onRoomClosed);
@@ -176,6 +233,7 @@ export function useGameState() {
       socket.off('round:player-submitted', onPlayerSubmitted);
       socket.off('player:joined', onPlayerJoined);
       socket.off('player:left', onPlayerLeft);
+      socket.off('player:disconnected', onPlayerDisconnected);
       socket.off('player:reconnected', onPlayerReconnected);
       socket.off('room:error', onError);
       socket.off('room:closed', onRoomClosed);
@@ -212,6 +270,7 @@ export function useGameState() {
     socket.emit('room:leave');
     setGameState(null);
     setLastGuessResult(null);
+    prevLeaderIdRef.current = null;
     clearSession();
   }, []);
 
@@ -220,6 +279,7 @@ export function useGameState() {
     socket.emit('room:close');
     setGameState(null);
     setLastGuessResult(null);
+    prevLeaderIdRef.current = null;
     clearSession();
   }, []);
 

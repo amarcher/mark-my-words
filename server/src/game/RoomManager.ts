@@ -162,14 +162,52 @@ export class RoomManager {
 
     const room = this.getRoomForPlayer(playerId);
     if (!room) return;
+    const roomCode = this.playerToRoom.get(playerId);
 
     if (room.getPhase() === 'LOBBY') {
       // In lobby, just remove the player
       this.leaveRoom(playerId);
-    } else {
-      // During game, mark as disconnected for potential reconnection
-      room.setPlayerConnected(playerId, false);
+      return;
     }
+
+    // During game, mark as disconnected for potential reconnection
+    room.setPlayerConnected(playerId, false);
+    // Promote a connected leader if the leader just dropped — otherwise
+    // leader-only actions (play-again, end-game, hint-approve) are blocked
+    // until the original leader reconnects.
+    room.promoteNextLeaderIfDisconnected(playerId);
+
+    // If everyone is now disconnected, destroy the room immediately —
+    // otherwise phase timers tick on zero sockets until the 30-min
+    // inactivity sweep runs.
+    if (roomCode && room.getConnectedPlayerCount() === 0) {
+      this.destroyRoom(roomCode, room);
+    }
+  }
+
+  /**
+   * Disconnect a player or host based on their reconnect token. Used by the
+   * pagehide /api/player/disconnect beacon endpoint, where the socket may
+   * already be torn down.
+   */
+  handleDisconnectByToken(token: string): { roomCode: string; playerId: string; playerName: string } | undefined {
+    const playerId = this.tokenToPlayerId.get(token);
+    if (playerId) {
+      const roomCode = this.playerToRoom.get(playerId);
+      const room = roomCode ? this.rooms.get(roomCode) : undefined;
+      const player = room?.getPlayer(playerId);
+      const playerName = player?.name ?? 'Unknown';
+      this.handleDisconnect(playerId);
+      if (roomCode) return { roomCode, playerId, playerName };
+      return undefined;
+    }
+
+    const hostId = this.tokenToHostId.get(token);
+    if (hostId) {
+      // Host beacon — drop the host mapping just like a socket disconnect would
+      this.handleDisconnect(hostId);
+    }
+    return undefined;
   }
 
   registerToken(token: string, playerId: string): void {

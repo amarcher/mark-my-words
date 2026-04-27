@@ -170,6 +170,21 @@ class AudioManager {
     }
   }
 
+  /**
+   * Tab visibility hooks. Unlike setPaused, these don't cancel speech or clear
+   * the queue — backgrounding shouldn't be observable on resume. Browsers
+   * already throttle most audio when hidden; we just stop the music element
+   * so it doesn't keep pulling network/cpu in the background.
+   */
+  pauseMusicForBackground(): void {
+    this.currentMusic?.pause();
+  }
+
+  resumeMusicFromBackground(): void {
+    if (this.muted || this.paused) return;
+    this.currentMusic?.play().catch(() => {});
+  }
+
   /** Load and loop a music track. Gracefully no-ops if file doesn't exist. */
   async playMusic(src: string, crossfadeDuration = 1000): Promise<void> {
     if (!this.ctx || !this.musicGain) return;

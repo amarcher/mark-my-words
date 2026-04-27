@@ -22,4 +22,8 @@ export interface NarratorBackend {
   setVolume(volume: number): void;
   setOnStateChange(cb: (() => void) | null): void;
   setOnIdle(cb: (() => void) | null): void;
+  /** Tab backgrounded — suspend AudioContext, drop pending audio, pause idle timer. */
+  pauseForBackground(): void;
+  /** Tab foregrounded — resume AudioContext, restart idle timer. */
+  resumeFromBackground(): void;
 }

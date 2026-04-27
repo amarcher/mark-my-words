@@ -154,9 +154,12 @@ export class RoomManager {
     // Check if it's a host disconnecting
     const hostRoomCode = this.hostToRoom.get(playerId);
     if (hostRoomCode) {
-      // Host presenter disconnected — don't remove the room yet,
-      // just clean up the host mapping
+      // Host presenter disconnected — drop the mapping but keep the room.
+      // Mark the host as offline (auto-resumes if paused outside AFK so
+      // pause/resume doesn't strand the room).
+      const room = this.rooms.get(hostRoomCode);
       this.hostToRoom.delete(playerId);
+      room?.markHostDisconnected();
       return;
     }
 

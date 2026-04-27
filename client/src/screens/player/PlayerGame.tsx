@@ -7,6 +7,7 @@ import RankBadge from '../../components/RankBadge';
 import ProximityBar from '../../components/ProximityBar';
 import GuessHistory from '../../components/GuessHistory';
 import Leaderboard from '../../components/Leaderboard';
+import HostStatusBadge from '../../components/HostStatusBadge';
 import { socket } from '../../socket';
 
 interface Props {
@@ -49,6 +50,11 @@ export default function PlayerGame({ state, game }: Props) {
           totalTime={state.round.totalTime}
           size="sm"
         />
+        {!state.hostConnected && (
+          <div className="mt-2">
+            <HostStatusBadge hostConnected={state.hostConnected} />
+          </div>
+        )}
       </div>
 
       {/* Guess input or result */}

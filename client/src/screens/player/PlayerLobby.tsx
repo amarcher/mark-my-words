@@ -1,6 +1,7 @@
 import type { LobbyState } from '@mmw/shared';
 import RoomCode from '../../components/RoomCode';
 import PlayerList from '../../components/PlayerList';
+import HostStatusBadge from '../../components/HostStatusBadge';
 import { socket } from '../../socket';
 
 interface Props {
@@ -25,6 +26,10 @@ export default function PlayerLobby({ state, game }: Props) {
         Mark My Words
       </h1>
       <RoomCode code={state.roomCode} size="sm" />
+
+      <div className="mt-3">
+        <HostStatusBadge hostConnected={state.hostConnected} />
+      </div>
 
       <div className="w-full max-w-sm my-6">
         <PlayerList

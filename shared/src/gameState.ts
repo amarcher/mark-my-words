@@ -80,6 +80,13 @@ interface BaseState {
   roomCode: string;
   players: Player[];
   hostId: string;
+  /**
+   * Whether the host (TV display) currently has a live socket. False when the
+   * host's tab is closed; flips back to true if they reconnect via token.
+   * The room continues without a host — clients can use this to surface
+   * "Host offline" UX so pause/resume controls don't appear silently dead.
+   */
+  hostConnected: boolean;
   leaderId: string;
   paused: boolean;
   afkCountdown: number | null;

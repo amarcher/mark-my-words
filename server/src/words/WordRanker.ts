@@ -26,9 +26,14 @@ export class WordRanker {
   }
 
   loadRankings(secretWord: string): boolean {
-    const filePath = join(DATA_DIR, 'rankings', `${secretWord}.json`);
-    if (!existsSync(filePath)) {
-      console.error(`Rankings file not found: ${filePath}`);
+    // Prefer LLM-tiered hybrid, fall back to Ollama embeddings, then legacy GloVe.
+    const candidates = ['rankings-hybrid', 'rankings-ollama', 'rankings'];
+    const filePath = candidates
+      .map(dir => join(DATA_DIR, dir, `${secretWord}.json`))
+      .find(p => existsSync(p));
+
+    if (!filePath) {
+      console.error(`Rankings file not found for secret word: ${secretWord}`);
       return false;
     }
 
@@ -99,11 +104,17 @@ export class WordRanker {
   }
 
   static getAvailableSecretWords(): string[] {
-    const rankingsDir = join(DATA_DIR, 'rankings');
-    if (!existsSync(rankingsDir)) return [];
-    return readdirSync(rankingsDir)
-      .filter(f => f.endsWith('.json'))
-      .map(f => f.replace('.json', ''));
+    // Union across all ranking sources (hybrid wins, ollama covers any gaps).
+    const dirs = ['rankings-hybrid', 'rankings-ollama', 'rankings'];
+    const seen = new Set<string>();
+    for (const dir of dirs) {
+      const path = join(DATA_DIR, dir);
+      if (!existsSync(path)) continue;
+      for (const f of readdirSync(path)) {
+        if (f.endsWith('.json')) seen.add(f.replace('.json', ''));
+      }
+    }
+    return Array.from(seen);
   }
 
   static pickRandomSecretWord(exclude: string[] = []): string | null {

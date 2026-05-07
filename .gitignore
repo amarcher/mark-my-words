@@ -2,4 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 server/data/glove/
+server/data/embeddings/
+server/data/rankings-hybrid/_raw/
 .env
+.claude/
+.agent-team/

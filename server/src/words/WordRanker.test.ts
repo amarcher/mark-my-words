@@ -278,10 +278,80 @@ describe('WordRanker', () => {
       expect(words).toEqual(['apple', 'banana', 'cherry']);
     });
 
-    it('returns empty array when directory missing', () => {
+    it('returns empty array when no ranking directories exist', () => {
       mockExistsSync.mockReturnValue(false);
       const words = WordRanker.getAvailableSecretWords();
       expect(words).toEqual([]);
+    });
+
+    it('unions secret words across all ranking sources', () => {
+      mockExistsSync.mockReturnValue(true);
+      mockReaddirSync.mockImplementation((path: unknown) => {
+        if (typeof path === 'string') {
+          if (path.includes('rankings-hybrid')) return ['apple.json', 'dog.json'] as unknown as ReturnType<typeof readdirSync>;
+          if (path.includes('rankings-ollama')) return ['dog.json', 'cat.json'] as unknown as ReturnType<typeof readdirSync>;
+          if (path.endsWith('rankings')) return ['cat.json', 'horse.json'] as unknown as ReturnType<typeof readdirSync>;
+        }
+        return [] as unknown as ReturnType<typeof readdirSync>;
+      });
+
+      const words = WordRanker.getAvailableSecretWords().sort();
+      expect(words).toEqual(['apple', 'cat', 'dog', 'horse']);
+    });
+  });
+
+  describe('loadRankings fallback chain', () => {
+    it('prefers rankings-hybrid when present', () => {
+      mockExistsSync.mockImplementation((path: unknown) =>
+        typeof path === 'string' && (path.includes('rankings-hybrid') || path.includes('vocabulary')),
+      );
+      mockReadFileSync.mockImplementation((path: unknown) => {
+        if (typeof path === 'string' && path.includes('rankings-hybrid')) {
+          return JSON.stringify({ winner: 2 });
+        }
+        if (typeof path === 'string' && path.includes('vocabulary.txt')) return '';
+        return '';
+      });
+
+      const ranker = new WordRanker();
+      expect(ranker.loadRankings('apple')).toBe(true);
+      expect(ranker.getRank('winner')).toBe(2);
+    });
+
+    it('falls back to rankings-ollama when hybrid is missing', () => {
+      mockExistsSync.mockImplementation((path: unknown) =>
+        typeof path === 'string' && !path.includes('rankings-hybrid'),
+      );
+      mockReadFileSync.mockImplementation((path: unknown) => {
+        if (typeof path === 'string' && path.includes('rankings-ollama')) {
+          return JSON.stringify({ ollamaword: 7 });
+        }
+        if (typeof path === 'string' && path.includes('vocabulary.txt')) return '';
+        return '';
+      });
+
+      const ranker = new WordRanker();
+      expect(ranker.loadRankings('apple')).toBe(true);
+      expect(ranker.getRank('ollamaword')).toBe(7);
+    });
+
+    it('falls back to legacy rankings when newer sources are missing', () => {
+      mockExistsSync.mockImplementation((path: unknown) => {
+        if (typeof path !== 'string') return false;
+        if (path.includes('rankings-hybrid') || path.includes('rankings-ollama')) return false;
+        return true;
+      });
+      mockReadFileSync.mockImplementation((path: unknown) => {
+        if (typeof path === 'string' && path.endsWith('rankings/apple.json')) {
+          return JSON.stringify({ legacyword: 99 });
+        }
+        if (typeof path === 'string' && path.includes('vocabulary.txt')) return '';
+        return '';
+      });
+
+      const ranker = new WordRanker();
+      expect(ranker.loadRankings('apple')).toBe(true);
+      expect(ranker.getRank('legacyword')).toBe(99);
     });
   });
 });

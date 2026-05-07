@@ -3,3 +3,7 @@ node_modules
 */dist
 *.md
 .claude
+.agent-team
+server/data/glove
+server/data/embeddings
+server/data/rankings-hybrid/_raw
